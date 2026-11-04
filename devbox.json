@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
+  "packages": [
+    "go@1.23",
+    "gopls@latest",
+    "golangci-lint@latest",
+    "sqlc@latest",
+    "go-migrate@latest",
+    "go-task@latest",
+    "nodejs_22@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'file-temp-share toolbox ready (devbox)'"
+    ],
+    "scripts": {
+      "check": [
+        "go version",
+        "sqlc version",
+        "migrate -version || true",
+        "task --version",
+        "node --version"
+      ]
+    }
+  }
+}

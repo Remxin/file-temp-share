@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: filetemp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-filetemp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-filetemp}
+      POSTGRES_DB: ${POSTGRES_DB:-filetemp}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-filetemp} -d ${POSTGRES_DB:-filetemp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Planned: API container (uncomment when backend/Dockerfile is ready) ---
+  # api:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: filetemp-api
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     DATABASE_URL: postgres://${POSTGRES_USER:-filetemp}:${POSTGRES_PASSWORD:-filetemp}@postgres:5432/${POSTGRES_DB:-filetemp}?sslmode=disable
+  #     UPLOAD_DIR: /data/uploads
+  #     HTTP_ADDR: :8080
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - upload_data:/data/uploads
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # --- Planned: MinIO (S3-compatible object storage) ---
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: filetemp-minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   volumes:
+  #     - minio_data:/data
+
+  # --- Planned: RabbitMQ (async jobs → worker → Gmail mailer) ---
+  # rabbitmq:
+  #   image: rabbitmq:3-management-alpine
+  #   container_name: filetemp-rabbitmq
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+  #   volumes:
+  #     - rabbitmq_data:/var/lib/rabbitmq
+
+volumes:
+  postgres_data:
+  # upload_data:
+  # minio_data:
+  # rabbitmq_data:

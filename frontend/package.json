@@ -1,0 +1,11 @@
+{
+  "name": "file-temp-share-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Placeholder — bootstrap Next.js App Router in a later iteration",
+  "scripts": {
+    "dev": "echo \"Next.js not bootstrapped yet\"",
+    "build": "echo \"Next.js not bootstrapped yet\"",
+    "start": "echo \"Next.js not bootstrapped yet\""
+  }
+}

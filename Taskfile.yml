@@ -1,0 +1,65 @@
+version: "3"
+
+vars:
+  N: "devbox run --"
+  BACKEND_DIR: backend
+  MIGRATIONS_DIR: backend/db/migrations
+  DATABASE_URL:
+    sh: 'echo "${DATABASE_URL:-postgres://filetemp:filetemp@localhost:5432/filetemp?sslmode=disable}"'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  infra:up:
+    desc: Start PostgreSQL (and later MinIO / RabbitMQ)
+    cmds:
+      - docker compose up -d postgres
+
+  infra:down:
+    desc: Stop Compose services
+    cmds:
+      - docker compose down
+
+  infra:logs:
+    desc: Tail Compose logs
+    cmds:
+      - docker compose logs -f
+
+  db:migrate:up:
+    desc: Apply database migrations (golang-migrate)
+    cmds:
+      - '{{.N}} migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" up'
+
+  db:migrate:down:
+    desc: Roll back one migration
+    cmds:
+      - '{{.N}} migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" down 1'
+
+  db:sqlc:
+    desc: Generate Go code from SQL (sqlc)
+    dir: "{{.BACKEND_DIR}}/db"
+    cmds:
+      - "{{.N}} sqlc generate"
+
+  api:run:
+    desc: Run API stub locally
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - "{{.N}} go run ./cmd/api"
+
+  worker:run:
+    desc: Run worker stub locally
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - "{{.N}} go run ./cmd/worker"
+
+  devbox:check:
+    desc: Verify Devbox toolbox tool versions
+    cmds:
+      - "{{.N}} go version"
+      - "{{.N}} sqlc version"
+      - "{{.N}} task --version"
+      - "{{.N}} node --version"

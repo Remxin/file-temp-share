@@ -1,0 +1,53 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Uploads / local data
+data/uploads/*
+!data/uploads/.gitkeep
+*.tmp
+
+# Go
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+vendor/
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Devbox / direnv / Nix
+.devbox/
+.direnv/
+result
+result-*
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Docker overrides
+docker-compose.override.yml
