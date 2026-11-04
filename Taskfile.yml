@@ -44,8 +44,14 @@ tasks:
     cmds:
       - "{{.N}} sqlc generate"
 
+  api:swagger:
+    desc: Generate OpenAPI/Swagger docs (swag)
+    dir: "{{.BACKEND_DIR}}"
+    cmds:
+      - '{{.N}} go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/api/main.go -o docs --parseDependency --parseInternal'
+
   api:run:
-    desc: Run API stub locally
+    desc: Run API locally (ensure task api:swagger was run once)
     dir: "{{.BACKEND_DIR}}"
     cmds:
       - "{{.N}} go run ./cmd/api"

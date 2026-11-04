@@ -14,7 +14,8 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Area | Status |
 |------|--------|
 | Folder layout, Devbox, Taskfile, Compose (Postgres) | Done (scaffold) |
-| REST API, CRUD, migrations, sqlc queries | Not started |
+| Gin API skeleton + Swagger UI (`/swagger/index.html`) | Done |
+| REST CRUD, migrations, sqlc queries | Not started |
 | Next.js frontend bootstrap | Not started (placeholder `frontend/`) |
 | JWT auth | Planned — structure only |
 | Local disk storage | Planned next for binaries |
@@ -27,6 +28,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Layer | Tech |
 |-------|------|
 | Backend HTTP | Go 1.23+, Gin |
+| API docs | **swaggo/swag** + gin-swagger (`backend/docs`, UI at `/swagger/index.html`) |
 | DB access | PostgreSQL 16, pgx/v5, **sqlc**, **golang-migrate** |
 | Validation | go-playground/validator (via Gin binding / `internal/platform/validate`) |
 | Logging | slog |
@@ -34,6 +36,8 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Task runner | Taskfile (`go-task`) |
 | Dev toolbox | **Devbox** (`devbox.json`) — not a hand-written Nix flake |
 | Containers | Docker Compose |
+
+Pin Gin to a release compatible with the Devbox Go version (currently `gin@v1.10.1` for Go 1.23). Do not bump Gin to `@latest` without checking `go` requirements.
 
 Do **not** introduce a second ORM (GORM, ent, etc.). Stick to sqlc + migrate.
 
@@ -73,6 +77,7 @@ Do **not** introduce a second ORM (GORM, ent, etc.). Stick to sqlc + migrate.
 │   │   ├── queries/          # sqlc *.sql
 │   │   └── sqlc.yaml
 │   ├── gen/sqlc/             # generated — do not hand-edit
+│   ├── docs/                 # swag generated OpenAPI — regenerate via task api:swagger
 │   ├── go.mod                # module: file-temp-share/backend
 │   └── Dockerfile
 ├── frontend/                 # Next.js (to bootstrap later)
@@ -169,9 +174,17 @@ Useful tasks:
 | `task infra:down` | Stop Compose |
 | `task db:migrate:up` | Apply migrations |
 | `task db:sqlc` | Generate sqlc |
-| `task api:run` | Run API |
+| `task api:swagger` | Regenerate OpenAPI into `backend/docs` |
+| `task api:run` | Run API (Swagger UI on `/swagger/index.html`) |
 | `task worker:run` | Run worker stub |
 | `task devbox:check` | Verify toolbox |
+
+### Swagger conventions
+
+- General API metadata (`@title`, `@version`, …) lives on `backend/cmd/api/main.go`.
+- Annotate handlers with swag comments; keep DTOs documented when added.
+- After changing annotations, run `task api:swagger` and commit `backend/docs/*`.
+- Do not hand-edit generated `docs.go` / `swagger.json` / `swagger.yaml`.
 
 ## Frontend
 
