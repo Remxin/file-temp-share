@@ -1,0 +1,25 @@
+basePath: /
+info:
+  contact:
+    name: file-temp-share
+    url: https://github.com/Remxin/file-temp-share
+  description: Temporary file-sharing API (WeTransfer-like).
+  title: file-temp-share API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      description: Returns service liveness
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - system
+swagger: "2.0"
