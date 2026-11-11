@@ -192,6 +192,76 @@ Useful tasks:
 - Talks to backend only via REST (`frontend/src/lib/api`).
 - Do not bootstrap `create-next-app` until asked; keep placeholders until then.
 
+### Product screens — regular user (no auth detail, no admin)
+
+Auth screens (login / register / password reset) and **admin** UI are out of scope here; admin will be specified separately. Creating transfers requires a logged-in user; **download is public**.
+
+#### Screen map
+
+| Screen | Route idea | Who | Purpose |
+|--------|------------|-----|---------|
+| Landing | `/` | public | Short product pitch + CTA to create transfer / sign in |
+| Dashboard (home for logged-in) | `/app` or `/transfers` | user | List and manage own transfers |
+| New transfer | `/transfers/new` | user | Wizard: files → options → confirm → share link |
+| Transfer detail | `/transfers/:id` | user (owner) | Full status, files, link, actions |
+| Public download | `/t/:slug` (or `/d/:token`) | public | Preview files + download |
+| Expired / unavailable | same download route or dedicated | public | Clear “link expired / removed” state (HTTP 410 semantics) |
+| Not found | `/404` | public | Generic 404 |
+| Account settings | `/settings` | user | Minimal: change email/password (keep thin) |
+
+Do **not** add admin screens, analytics dashboards, or folder trees unless asked.
+
+#### Dashboard (main panel) — required content
+
+One job: **manage the user’s transfers**. Primary CTA: **New transfer**.
+
+**Above the list**
+- Button: New transfer
+- Filters: Active / Expired / All (default: Active)
+- Optional: search by title
+
+**Each transfer row/card**
+- Title (or fallback name)
+- Status (`active` / `expired` / …)
+- File count + total size
+- Expires at (`expires_at`)
+- Share mode hint: link-only and/or recipient emails (when mail is enabled)
+- Share link + **Copy link**
+- Optional: download count
+- Actions: open detail, copy link, delete (and later: extend expiry if implemented)
+
+**Empty state**
+- Short message + CTA New transfer when the user has no transfers in the current filter.
+
+**Avoid on dashboard**
+- Stats widgets, charts, “this week” strips, promo cards, unrelated settings blocks.
+- Admin controls.
+
+#### New transfer (wizard)
+
+1. Select / upload one or more files (show names, sizes, remove).
+2. Options: title, message, expiry duration, optional password, optional recipient emails (for later Gmail send).
+3. Submit → create transfer → show success with share link (and copy) → link to detail.
+
+#### Transfer detail
+
+- Same metadata as list, plus full file list.
+- Share link + copy; delete transfer; (later) resend email / extend.
+- Reflect expiry: if expired, disable download-oriented actions and show expired state.
+
+#### Public download
+
+- Show title, message (if any), file list, total size, expiry info.
+- CTA download (all or per-file — prefer per-file + “download all” if easy).
+- If expired/deleted: no download buttons; explain that the link is no longer valid.
+
+#### UX rules for agents
+
+- Logged-in shell: simple nav (Dashboard, New transfer, Settings) — no admin entries.
+- Prefer one primary action per view.
+- Expiry is a first-class UI state everywhere a transfer appears.
+- Wire UI to REST DTOs only; do not invent admin or auth flows in these screens beyond “user is logged in”.
+
 ## Environment
 
 Copy `.env.example` → `.env`. Never commit secrets. Gmail tokens stay local.
