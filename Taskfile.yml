@@ -4,6 +4,9 @@ vars:
   N: "devbox run --"
   BACKEND_DIR: backend
   MIGRATIONS_DIR: backend/db/migrations
+  BIN_DIR: bin
+  MIGRATE_BIN: "{{.BIN_DIR}}/migrate"
+  MIGRATE_PKG: github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.1
   DATABASE_URL:
     sh: 'echo "${DATABASE_URL:-postgres://filetemp:filetemp@localhost:5432/filetemp?sslmode=disable}"'
 
@@ -12,6 +15,14 @@ tasks:
     desc: List available tasks
     cmds:
       - task --list
+
+  tools:install:
+    desc: Install local CLI tools (golang-migrate with postgres driver only)
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      # Nix/Devbox go-migrate panics (Snowflake CA). Build postgres-only binary into ./bin.
+      - '{{.N}} env GOBIN="{{.USER_WORKING_DIR}}/{{.BIN_DIR}}" go install -tags "postgres" {{.MIGRATE_PKG}}'
+      - "{{.MIGRATE_BIN}} -version"
 
   infra:up:
     desc: Start PostgreSQL (and later MinIO / RabbitMQ)
@@ -30,13 +41,23 @@ tasks:
 
   db:migrate:up:
     desc: Apply database migrations (golang-migrate)
+    deps: [tools:install]
     cmds:
-      - '{{.N}} migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" up'
+      - '{{.MIGRATE_BIN}} -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" up'
 
   db:migrate:down:
     desc: Roll back one migration
+    deps: [tools:install]
     cmds:
-      - '{{.N}} migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" down 1'
+      - '{{.MIGRATE_BIN}} -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" down 1'
+
+  db:seed:
+    desc: Load development seed data (users)
+    cmds:
+      - |
+        docker compose exec -T postgres \
+          psql -U "${POSTGRES_USER:-filetemp}" -d "${POSTGRES_DB:-filetemp}" \
+          < backend/db/seeds/001_users.sql
 
   db:sqlc:
     desc: Generate Go code from SQL (sqlc)
@@ -64,8 +85,10 @@ tasks:
 
   devbox:check:
     desc: Verify Devbox toolbox tool versions
+    deps: [tools:install]
     cmds:
       - "{{.N}} go version"
       - "{{.N}} sqlc version"
+      - "{{.MIGRATE_BIN}} -version"
       - "{{.N}} task --version"
       - "{{.N}} node --version"

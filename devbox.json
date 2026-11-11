@@ -5,19 +5,20 @@
     "gopls@latest",
     "golangci-lint@latest",
     "sqlc@latest",
-    "go-migrate@latest",
     "go-task@latest",
     "nodejs_22@latest"
   ],
   "shell": {
     "init_hook": [
-      "echo 'file-temp-share toolbox ready (devbox)'"
+      "export PATH=\"$PWD/bin:$PATH\"",
+      "echo 'file-temp-share toolbox ready (devbox)'",
+      "command -v migrate >/dev/null || echo 'hint: run task tools:install  # installs golang-migrate (postgres)'"
     ],
     "scripts": {
       "check": [
         "go version",
         "sqlc version",
-        "migrate -version || true",
+        "migrate -version",
         "task --version",
         "node --version"
       ]
