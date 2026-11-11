@@ -15,7 +15,9 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 |------|--------|
 | Folder layout, Devbox, Taskfile, Compose (Postgres) | Done (scaffold) |
 | Gin API skeleton + Swagger UI (`/swagger/index.html`) | Done |
-| REST CRUD, migrations, sqlc queries | Not started |
+| Initial migration (`users` / `transfers` / `files`) + user seed | Done |
+| Migrations: `000001` init (incl. `blocked`) + `000002` recipients/logs; user seed | Done |
+| REST CRUD, sqlc queries | Not started |
 | Next.js frontend bootstrap | Not started (placeholder `frontend/`) |
 | JWT auth | Planned — structure only |
 | Local disk storage | Planned next for binaries |
@@ -36,6 +38,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Task runner | Taskfile (`go-task`) |
 | Dev toolbox | **Devbox** (`devbox.json`) — not a hand-written Nix flake |
 | Containers | Docker Compose |
+| Migrations CLI | golang-migrate `v4.18.1` built into `./bin/migrate` with `-tags postgres` (`task tools:install`) — do **not** use Nix `go-migrate` (panics on Snowflake CA) |
 
 Pin Gin to a release compatible with the Devbox Go version (currently `gin@v1.10.1` for Go 1.23). Do not bump Gin to `@latest` without checking `go` requirements.
 
@@ -115,13 +118,15 @@ repository → gen/sqlc (via thin wrappers)
 
 ## Domain model
 
-Minimum entities:
+Entities (5):
 
-1. **users** — prepared for JWT; `user_id` on transfers may be nullable until auth lands.
-2. **transfers** — share package (slug, title, message, status, expires_at).
+1. **users** — accounts (JWT later); `user_id` on transfers is required for create.
+2. **transfers** — share package (`short_code`, title, `message` note, optional password, status, expires_at).
 3. **files** — belongs to a transfer (`transfer_id` FK, 1—N).
+4. **transfer_recipients** — emails to notify with the public link (1—N per transfer). Recipients do **not** need an account; access is public via `short_code` (+ optional transfer password).
+5. **download_logs** — download history per transfer (optional `file_id` for per-file downloads).
 
-Relationship **required for grading**: `transfers` 1—N `files`.
+Core relationships: `users` 1—N `transfers` 1—N `files`; `transfers` 1—N `transfer_recipients`; `transfers` 1—N `download_logs`.
 
 ## Storage
 
@@ -156,14 +161,16 @@ service → queue.Publisher → RabbitMQ → cmd/worker → mailer.Mailer
 2. Add or update queries in `backend/db/queries/*.sql`
 3. Run `task db:sqlc` (generates `backend/gen/sqlc`)
 4. Run `task db:migrate:up` (requires Postgres via `task infra:up`)
+5. Optional: `task db:seed` loads `backend/db/seeds/*.sql` (dev only; not part of migrate)
 
-Never edit generated sqlc output by hand.
+Never edit generated sqlc output by hand. Keep seeds out of `migrations/` so sqlc schema stays clean.
 
 ## Devbox + Taskfile
 
 - Install [Devbox](https://www.jetify.com/devbox), then `devbox shell` (or use direnv + `.envrc`).
-- Tools (go, sqlc, migrate, go-task, node) come from `devbox.json`.
-- Taskfile prefixes tool commands with `devbox run --` via `{{.N}}`.
+- Tools (go, sqlc, go-task, node) come from `devbox.json`.
+- **golang-migrate** is installed locally via `task tools:install` into `./bin/migrate` (postgres driver only). Devbox `init_hook` prepends `./bin` to `PATH`.
+- Taskfile prefixes most tool commands with `devbox run --` via `{{.N}}`.
 - Docker Compose runs **without** Devbox prefix (system Docker).
 
 Useful tasks:
@@ -172,7 +179,9 @@ Useful tasks:
 |------|---------|
 | `task infra:up` | Start Postgres |
 | `task infra:down` | Stop Compose |
+| `task tools:install` | Install `./bin/migrate` (postgres-only golang-migrate) |
 | `task db:migrate:up` | Apply migrations |
+| `task db:seed` | Load dev seed users |
 | `task db:sqlc` | Generate sqlc |
 | `task api:swagger` | Regenerate OpenAPI into `backend/docs` |
 | `task api:run` | Run API (Swagger UI on `/swagger/index.html`) |
