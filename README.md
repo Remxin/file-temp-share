@@ -32,7 +32,7 @@ task db:seed   # optional
 
 Change host ports via `API_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT`, `RABBITMQ_PORT`, `RABBITMQ_MANAGEMENT_PORT` in `.env`.
 
-Worker (`task worker:run`) consumes `email.password_reset` and logs jobs (mailer not wired yet).
+Worker (`task worker:run`) consumes `email.password_reset` and sends mail via Gmail SMTP (`GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` in `.env` or `.env.local`).
 
 ## Layout
 

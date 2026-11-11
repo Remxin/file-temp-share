@@ -91,7 +91,7 @@ tasks:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/api"'
 
   worker:run:
-    desc: Run async worker locally (requires RabbitMQ — task infra:up:mq)
+    desc: Run async worker (RabbitMQ + GMAIL_APP_LOGIN/PASSWORD in .env/.env.local)
     cmds:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/worker"'
 

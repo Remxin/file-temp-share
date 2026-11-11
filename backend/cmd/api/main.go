@@ -12,6 +12,7 @@ import (
 	"file-temp-share/backend/internal/config"
 	"file-temp-share/backend/internal/handler"
 	"file-temp-share/backend/internal/platform/database"
+	"file-temp-share/backend/internal/queue"
 	"file-temp-share/backend/internal/repository"
 	"file-temp-share/backend/internal/server"
 	"file-temp-share/backend/internal/service"
@@ -48,10 +49,32 @@ func main() {
 	}
 	defer pool.Close()
 
+	mq, err := queue.Dial(cfg.RabbitMQURL)
+	if err != nil {
+		slog.Error("rabbitmq dial", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := mq.Close(); err != nil {
+			slog.Error("rabbitmq close", "err", err)
+		}
+	}()
+
+	publisher, err := queue.NewPublisher(mq)
+	if err != nil {
+		slog.Error("rabbitmq publisher", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			slog.Error("publisher close", "err", err)
+		}
+	}()
+
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.JWTTTL)
 	userRepo := repository.NewUserRepository(pool)
 	resetRepo := repository.NewPasswordResetRepository(pool)
-	authService := service.NewAuthService(userRepo, resetRepo, tokenManager)
+	authService := service.NewAuthService(userRepo, resetRepo, tokenManager, publisher, cfg.AppPublicURL)
 	authHandler := handler.NewAuthHandler(authService)
 
 	engine := server.New(server.Dependencies{
