@@ -24,7 +24,7 @@ CREATE TABLE transfers (
     download_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT transfers_short_code_key UNIQUE (short_code),
-    CONSTRAINT transfers_status_check CHECK (status IN ('active', 'expired', 'deleted')),
+    CONSTRAINT transfers_status_check CHECK (status IN ('active', 'expired', 'deleted', 'blocked')),
     CONSTRAINT transfers_max_downloads_check CHECK (max_downloads IS NULL OR max_downloads > 0),
     CONSTRAINT transfers_download_count_check CHECK (download_count >= 0)
 );

@@ -16,6 +16,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Folder layout, Devbox, Taskfile, Compose (Postgres) | Done (scaffold) |
 | Gin API skeleton + Swagger UI (`/swagger/index.html`) | Done |
 | Initial migration (`users` / `transfers` / `files`) + user seed | Done |
+| Migrations: `000001` init (incl. `blocked`) + `000002` recipients/logs; user seed | Done |
 | REST CRUD, sqlc queries | Not started |
 | Next.js frontend bootstrap | Not started (placeholder `frontend/`) |
 | JWT auth | Planned — structure only |
@@ -117,13 +118,15 @@ repository → gen/sqlc (via thin wrappers)
 
 ## Domain model
 
-Minimum entities:
+Entities (5):
 
-1. **users** — prepared for JWT; `user_id` on transfers may be nullable until auth lands.
-2. **transfers** — share package (slug, title, message, status, expires_at).
+1. **users** — accounts (JWT later); `user_id` on transfers is required for create.
+2. **transfers** — share package (`short_code`, title, `message` note, optional password, status, expires_at).
 3. **files** — belongs to a transfer (`transfer_id` FK, 1—N).
+4. **transfer_recipients** — emails to notify with the public link (1—N per transfer). Recipients do **not** need an account; access is public via `short_code` (+ optional transfer password).
+5. **download_logs** — download history per transfer (optional `file_id` for per-file downloads).
 
-Relationship **required for grading**: `transfers` 1—N `files`.
+Core relationships: `users` 1—N `transfers` 1—N `files`; `transfers` 1—N `transfer_recipients`; `transfers` 1—N `download_logs`.
 
 ## Storage
 
