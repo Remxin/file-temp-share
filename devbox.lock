@@ -5,44 +5,6 @@
       "last_modified": "2026-11-03T19:55:20Z",
       "resolved": "github:NixOS/nixpkgs/9d3b8db48266c17be0b5f9c6360c3ecfbac3d1f5?lastModified=1793735720&narHash=sha256-smoxPKrzAhdGuFd2LLnG4m8P6IrZuW95DVyzjnlab7w%3D"
     },
-    "go-migrate@latest": {
-      "last_modified": "2026-10-02T22:55:44Z",
-      "resolved": "github:NixOS/nixpkgs/55ba7f49ef2962b42cbd126522b7df5f95037679#go-migrate",
-      "source": "devbox-search",
-      "version": "4.20.1",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/cxcknygrf1i87xqlinydp4qps52qfcci-go-migrate-4.20.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/cxcknygrf1i87xqlinydp4qps52qfcci-go-migrate-4.20.1"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0r8gd0xphvszfzjzpv166qy73dnwp750-go-migrate-4.20.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/0r8gd0xphvszfzjzpv166qy73dnwp750-go-migrate-4.20.1"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/m6qyij1r4b1zpsii50k3kdzai00jzd9q-go-migrate-4.20.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/m6qyij1r4b1zpsii50k3kdzai00jzd9q-go-migrate-4.20.1"
-        }
-      }
-    },
     "go-task@latest": {
       "last_modified": "2026-10-02T22:55:44Z",
       "resolved": "github:NixOS/nixpkgs/55ba7f49ef2962b42cbd126522b7df5f95037679#go-task",
