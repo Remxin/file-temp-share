@@ -19,7 +19,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Migrations: `000001` init (incl. `blocked`) + `000002` recipients/logs; user seed | Done |
 | REST CRUD, sqlc queries | Not started |
 | Next.js frontend bootstrap | Not started (placeholder `frontend/`) |
-| JWT auth | Planned — structure only |
+| JWT auth (single token: register/login/me/password-reset) | Done (mailer for reset not wired) |
 | Local disk storage | Planned next for binaries |
 | MinIO (S3) | Planned later — compose stub commented |
 | RabbitMQ + worker | Planned later — compose stub commented |
@@ -134,11 +134,18 @@ Core relationships: `users` 1—N `transfers` 1—N `files`; `transfers` 1—N `
 - **Later:** MinIO via the same `storage.Storage` interface (put/get/delete by key).
 - Keep blob I/O out of handlers; go through `internal/storage`.
 
-## Auth (planned)
+## Auth
 
-- JWT access + refresh.
-- Code lives under `internal/auth` + `internal/middleware`.
-- Do not implement until explicitly requested; keep `users` table/migrations in mind when designing schema.
+- **Single JWT** (HS256) — no refresh token pair.
+- Env: `JWT_SECRET`, `JWT_TTL` (e.g. `24h`).
+- Endpoints:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/auth/me` (Bearer)
+  - `POST /api/v1/auth/password-reset` (issues token; **email not sent yet** — token logged for dev)
+  - `POST /api/v1/auth/password-reset/confirm`
+- Code: `internal/auth`, `internal/middleware`, `internal/handler` (auth), `internal/service` (auth).
+- Table `password_reset_tokens` stores SHA-256 of the raw token.
 
 ## Async + mail (planned)
 
