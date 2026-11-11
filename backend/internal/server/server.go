@@ -20,7 +20,7 @@ type Dependencies struct {
 // New builds the Gin engine with health, swagger and API routes.
 func New(deps Dependencies) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(gin.Logger(), gin.Recovery(), corsMiddleware())
 
 	r.GET("/health", health)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -50,4 +50,23 @@ func New(deps Dependencies) *gin.Engine {
 //	@Router			/health [get]
 func health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// corsMiddleware allows the local Next.js app to call the API during development.
+func corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		switch origin {
+		case "http://localhost:3000", "http://127.0.0.1:3000":
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }

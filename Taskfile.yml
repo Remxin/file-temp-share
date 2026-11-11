@@ -25,7 +25,12 @@ tasks:
       - "{{.MIGRATE_BIN}} -version"
 
   infra:up:
-    desc: Start PostgreSQL (and later MinIO / RabbitMQ)
+    desc: Build and start Postgres, API, and frontend (ports 5432 / 8080 / 3000)
+    cmds:
+      - docker compose up -d --build
+
+  infra:up:db:
+    desc: Start only PostgreSQL (for local api/frontend via task)
     cmds:
       - docker compose up -d postgres
 
@@ -38,6 +43,11 @@ tasks:
     desc: Tail Compose logs
     cmds:
       - docker compose logs -f
+
+  infra:ps:
+    desc: Show Compose service status
+    cmds:
+      - docker compose ps
 
   db:migrate:up:
     desc: Apply database migrations (golang-migrate)
@@ -61,27 +71,39 @@ tasks:
 
   db:sqlc:
     desc: Generate Go code from SQL (sqlc)
-    dir: "{{.BACKEND_DIR}}/db"
+    # devbox run resets cwd to repo root (devbox.json); cd explicitly inside the command.
     cmds:
-      - "{{.N}} sqlc generate"
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}}/db && sqlc generate"'
 
   api:swagger:
     desc: Generate OpenAPI/Swagger docs (swag)
-    dir: "{{.BACKEND_DIR}}"
     cmds:
-      - '{{.N}} go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/api/main.go -o docs --parseDependency --parseInternal'
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/api/main.go -o docs --parseDependency --parseInternal"'
 
   api:run:
     desc: Run API locally (ensure task api:swagger was run once)
-    dir: "{{.BACKEND_DIR}}"
     cmds:
-      - "{{.N}} go run ./cmd/api"
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/api"'
 
   worker:run:
     desc: Run worker stub locally
-    dir: "{{.BACKEND_DIR}}"
     cmds:
-      - "{{.N}} go run ./cmd/worker"
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/worker"'
+
+  frontend:dev:
+    desc: Run Next.js frontend (http://localhost:3000)
+    cmds:
+      - '{{.N}} sh -c "cd frontend && npm run dev"'
+
+  frontend:build:
+    desc: Build Next.js frontend for production
+    cmds:
+      - '{{.N}} sh -c "cd frontend && npm run build"'
+
+  frontend:lint:
+    desc: Lint Next.js frontend
+    cmds:
+      - '{{.N}} sh -c "cd frontend && npm run lint"'
 
   devbox:check:
     desc: Verify Devbox toolbox tool versions

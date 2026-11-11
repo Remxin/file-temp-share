@@ -13,12 +13,12 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 
 | Area | Status |
 |------|--------|
-| Folder layout, Devbox, Taskfile, Compose (Postgres) | Done (scaffold) |
+| Folder layout, Devbox, Taskfile, Compose (Postgres + API + frontend) | Done |
 | Gin API skeleton + Swagger UI (`/swagger/index.html`) | Done |
 | Initial migration (`users` / `transfers` / `files`) + user seed | Done |
 | Migrations: `000001` init (incl. `blocked`) + `000002` recipients/logs; user seed | Done |
 | REST CRUD, sqlc queries | Not started |
-| Next.js frontend bootstrap | Not started (placeholder `frontend/`) |
+| Next.js frontend (App Router + auth/transfers UI) | In progress |
 | JWT auth (single token: register/login/me/password-reset) | Done (mailer for reset not wired) |
 | Local disk storage | Planned next for binaries |
 | MinIO (S3) | Planned later — compose stub commented |
@@ -184,7 +184,8 @@ Useful tasks:
 
 | Task | Purpose |
 |------|---------|
-| `task infra:up` | Start Postgres |
+| `task infra:up` | Build & start Postgres + API + frontend |
+| `task infra:up:db` | Start only Postgres (hybrid local dev) |
 | `task infra:down` | Stop Compose |
 | `task tools:install` | Install `./bin/migrate` (postgres-only golang-migrate) |
 | `task db:migrate:up` | Apply migrations |

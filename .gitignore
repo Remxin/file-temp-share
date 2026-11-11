@@ -39,6 +39,7 @@ result-*
 
 # IDE / editor
 .idea/
+.cursor
 .vscode/
 *.swp
 *.swo

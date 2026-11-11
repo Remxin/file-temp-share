@@ -9,26 +9,31 @@ Architecture, layering, and feature status for AI agents: **[AGENTS.md](./AGENTS
 ```bash
 cp .env.example .env
 
-# Toolchain (optional but recommended)
-# https://www.jetify.com/devbox
-devbox shell
-
-# Postgres
+# Full stack in Docker (Postgres :5432, API :8080, frontend :3000)
 task infra:up
+task db:migrate:up
+task db:seed   # optional
 
-# Generate Swagger docs, then run API
-task api:swagger
-task api:run
+# Or hybrid: only DB in Docker, run API/frontend via Devbox
+# task infra:up:db
+# task api:swagger && task api:run
+# task frontend:dev
 ```
 
-Swagger UI: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+| Service | URL |
+|---------|-----|
+| Frontend | [http://localhost:3000](http://localhost:3000) |
+| API / Swagger | [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html) |
+| Postgres | `localhost:5432` |
+
+Change host ports via `API_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT` in `.env`.
 
 ## Layout
 
 | Path | Role |
 |------|------|
 | `backend/` | Gin monolith (API + future worker) |
-| `frontend/` | Next.js (placeholder until bootstrapped) |
-| `docker-compose.yml` | Postgres now; MinIO / RabbitMQ commented |
+| `frontend/` | Next.js App Router |
+| `docker-compose.yml` | Postgres + API + frontend; MinIO / RabbitMQ commented |
 | `Taskfile.yml` | Common commands |
 | `devbox.json` | Dev toolbox (go, sqlc, migrate, task, node) |

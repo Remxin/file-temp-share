@@ -1,0 +1,7 @@
+bin/
+data/
+**/*_test.go
+.git/
+.gitignore
+*.md
+.DS_Store
