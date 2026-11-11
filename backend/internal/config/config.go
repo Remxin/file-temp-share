@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	JWTTTL      time.Duration
+	RabbitMQURL string
 }
 
 func Load() (Config, error) {
@@ -20,6 +21,7 @@ func Load() (Config, error) {
 		SwaggerHost: getEnv("SWAGGER_HOST", "localhost:8080"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://filetemp:filetemp@localhost:5432/filetemp?sslmode=disable"),
 		JWTSecret:   getEnv("JWT_SECRET", "change-me-jwt-secret"),
+		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 	}
 
 	ttlRaw := getEnv("JWT_TTL", "24h")
@@ -37,6 +39,9 @@ func Load() (Config, error) {
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.RabbitMQURL == "" {
+		return Config{}, fmt.Errorf("RABBITMQ_URL is required")
 	}
 	return cfg, nil
 }

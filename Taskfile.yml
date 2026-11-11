@@ -34,6 +34,11 @@ tasks:
     cmds:
       - docker compose up -d postgres
 
+  infra:up:mq:
+    desc: Start only RabbitMQ (AMQP :5672, management :15672)
+    cmds:
+      - docker compose up -d rabbitmq
+
   infra:down:
     desc: Stop Compose services
     cmds:
@@ -86,7 +91,7 @@ tasks:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/api"'
 
   worker:run:
-    desc: Run worker stub locally
+    desc: Run async worker locally (requires RabbitMQ — task infra:up:mq)
     cmds:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/worker"'
 

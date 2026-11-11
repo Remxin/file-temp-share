@@ -22,7 +22,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | JWT auth (single token: register/login/me/password-reset) | Done (mailer for reset not wired) |
 | Local disk storage | Planned next for binaries |
 | MinIO (S3) | Planned later — compose stub commented |
-| RabbitMQ + worker | Planned later — compose stub commented |
+| RabbitMQ + worker | Setup done — topic `filetemp.emails` / queue `email.password_reset`; worker log-only (auth publish + mailer not wired) |
 | Gmail mailer (personal Google account / OAuth token) | **Owner implements** — agents leave interface + env only |
 
 ## Stack
@@ -57,7 +57,7 @@ Do **not** introduce a second ORM (GORM, ent, etc.). Stick to sqlc + migrate.
 ├── docker-compose.yml
 ├── backend/
 │   ├── cmd/api/              # HTTP API entrypoint
-│   ├── cmd/worker/           # async consumer (RabbitMQ → mailer) — later
+│   ├── cmd/worker/           # async consumer (RabbitMQ → log/mailer)
 │   ├── internal/
 │   │   ├── config/           # env / config loading
 │   │   ├── server/           # Gin engine, router wiring
@@ -68,7 +68,7 @@ Do **not** introduce a second ORM (GORM, ent, etc.). Stick to sqlc + migrate.
 │   │   ├── domain/           # domain types / business errors
 │   │   ├── auth/             # JWT (planned)
 │   │   ├── storage/          # file blob storage (local now, MinIO later)
-│   │   ├── queue/            # RabbitMQ publisher (planned)
+│   │   ├── queue/            # RabbitMQ client, publisher, consumer
 │   │   ├── mailer/           # Mailer interface; Gmail impl = owner
 │   │   ├── middleware/       # auth, request-id, recovery
 │   │   └── platform/
@@ -147,18 +147,28 @@ Core relationships: `users` 1—N `transfers` 1—N `files`; `transfers` 1—N `
 - Code: `internal/auth`, `internal/middleware`, `internal/handler` (auth), `internal/service` (auth).
 - Table `password_reset_tokens` stores SHA-256 of the raw token.
 
-## Async + mail (planned)
+## Async + mail
 
 ```
 service → queue.Publisher → RabbitMQ → cmd/worker → mailer.Mailer
 ```
 
-- Compose services for RabbitMQ (and MinIO) are **commented** in `docker-compose.yml`.
+Current topology (declared idempotently by publisher/consumer):
+
+| Element | Name |
+|---------|------|
+| Exchange | `filetemp.emails` (topic, durable) |
+| Queue | `email.password_reset` (durable) |
+| Routing key | `email.password_reset` |
+
+- RabbitMQ runs in Compose (`task infra:up:mq` or full `infra:up`). Management UI: `http://localhost:15672` (guest/guest).
+- Worker: `task worker:run` — consumes password-reset jobs and **logs** them (mailer not wired; auth does not publish yet).
+- Env: `RABBITMQ_URL` (host default `amqp://guest:guest@localhost:5672/`).
+- MinIO remains **commented** in `docker-compose.yml`.
 - **Gmail:** send through the owner’s Google account using OAuth client credentials + refresh token (`GMAIL_*` in `.env.example`).
 - Agents **must not** implement the Gmail client unless the owner asks. Provide only:
   - `mailer.Mailer` interface (e.g. `Send(ctx, msg) error`)
   - config placeholders
-  - worker stub wiring comments
 - Owner owns the concrete Gmail implementation under `internal/mailer`.
 
 ## Database workflow
@@ -184,8 +194,9 @@ Useful tasks:
 
 | Task | Purpose |
 |------|---------|
-| `task infra:up` | Build & start Postgres + API + frontend |
+| `task infra:up` | Build & start Postgres + RabbitMQ + API + frontend |
 | `task infra:up:db` | Start only Postgres (hybrid local dev) |
+| `task infra:up:mq` | Start only RabbitMQ (AMQP :5672, management :15672) |
 | `task infra:down` | Stop Compose |
 | `task tools:install` | Install `./bin/migrate` (postgres-only golang-migrate) |
 | `task db:migrate:up` | Apply migrations |
@@ -193,7 +204,7 @@ Useful tasks:
 | `task db:sqlc` | Generate sqlc |
 | `task api:swagger` | Regenerate OpenAPI into `backend/docs` |
 | `task api:run` | Run API (Swagger UI on `/swagger/index.html`) |
-| `task worker:run` | Run worker stub |
+| `task worker:run` | Run worker (password-reset consumer; requires RabbitMQ) |
 | `task devbox:check` | Verify toolbox |
 
 ### Swagger conventions
@@ -287,7 +298,7 @@ Copy `.env.example` → `.env`. Never commit secrets. Gmail tokens stay local.
 
 - Makefile (use Taskfile).
 - Hand-written `flake.nix` (use Devbox).
-- Implementing Gmail mailer, MinIO, RabbitMQ, or JWT unless the task explicitly says so.
+- Implementing Gmail mailer, MinIO, or expanding RabbitMQ (reconnect/DLQ/auth publish) unless the task explicitly says so.
 - Mixing DTO and DB models in public API responses.
 - Putting business rules in handlers or SQL-only “logic” that belongs in services.
 - Adding Mailhog — production mail path is Gmail via the owner’s account.

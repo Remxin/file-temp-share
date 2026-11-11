@@ -30,12 +30,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
       JWT_TTL: ${JWT_TTL:-24h}
       UPLOAD_DIR: /data/uploads
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:
       - upload_data:/data/uploads
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
@@ -75,18 +78,25 @@ services:
   #   volumes:
   #     - minio_data:/data
 
-  # --- Planned: RabbitMQ (async jobs → worker → Gmail mailer) ---
-  # rabbitmq:
-  #   image: rabbitmq:3-management-alpine
-  #   container_name: filetemp-rabbitmq
-  #   ports:
-  #     - "5672:5672"
-  #     - "15672:15672"
-  #   volumes:
-  #     - rabbitmq_data:/var/lib/rabbitmq
+  # Async jobs (worker runs locally via task worker:run for now)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: filetemp-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   postgres_data:
   upload_data:
+  rabbitmq_data:
   # minio_data:
-  # rabbitmq_data:
