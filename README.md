@@ -9,14 +9,13 @@ Architecture, layering, and feature status for AI agents: **[AGENTS.md](./AGENTS
 ```bash
 cp .env.example .env
 
-# Full stack in Docker (Postgres :5432, RabbitMQ :5672, API :8080, frontend :3000)
+# Full stack in Docker (Postgres, RabbitMQ, API, worker, frontend)
 task infra:up
 task db:migrate:up
 task db:seed   # optional
 
-# Or hybrid: only DB (+ optionally MQ) in Docker, run API/frontend/worker via Devbox
-# task infra:up:db
-# task infra:up:mq
+# Or hybrid: infra in Docker, processes via Devbox
+# task infra:up:db && task infra:up:mq
 # task api:swagger && task api:run
 # task worker:run
 # task frontend:dev
@@ -32,7 +31,7 @@ task db:seed   # optional
 
 Change host ports via `API_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT`, `RABBITMQ_PORT`, `RABBITMQ_MANAGEMENT_PORT` in `.env`.
 
-Worker (`task worker:run`) consumes `email.password_reset` and sends mail via Gmail SMTP (`GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` in `.env` or `.env.local`).
+Worker (Compose service `worker`, image `backend/Dockerfile.worker`) sends password-reset mail via Gmail SMTP. Put `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` in project `.env` so Compose can inject them.
 
 ## Layout
 
@@ -40,6 +39,6 @@ Worker (`task worker:run`) consumes `email.password_reset` and sends mail via Gm
 |------|------|
 | `backend/` | Gin monolith (API + worker) |
 | `frontend/` | Next.js App Router |
-| `docker-compose.yml` | Postgres + RabbitMQ + API + frontend; MinIO commented |
+| `docker-compose.yml` | Postgres + RabbitMQ + API + worker + frontend; MinIO commented |
 | `Taskfile.yml` | Common commands |
 | `devbox.json` | Dev toolbox (go, sqlc, migrate, task, node) |

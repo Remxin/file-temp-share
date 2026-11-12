@@ -22,7 +22,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | JWT auth (single token: register/login/me/password-reset) | Done (reset enqueues email job) |
 | Local disk storage | Planned next for binaries |
 | MinIO (S3) | Planned later — compose stub commented |
-| RabbitMQ + worker | Done — password-reset publish + worker sends mail via Gmail SMTP |
+| RabbitMQ + worker | Done — Compose service `worker` (`Dockerfile.worker`); password-reset mail via Gmail SMTP |
 | Gmail mailer (SMTP app password) | Done — `internal/mailer`; secrets in `.env` / `.env.local` only |
 
 ## Stack
@@ -161,10 +161,11 @@ Current topology (declared idempotently by publisher/consumer):
 | Queue | `email.password_reset` (durable) |
 | Routing key | `email.password_reset` |
 
-- RabbitMQ runs in Compose (`task infra:up:mq` or full `infra:up`). Management UI: `http://localhost:15672` (guest/guest).
+- RabbitMQ + worker run in Compose (`task infra:up` / `task infra:up:mq`). Management UI: `http://localhost:15672` (guest/guest).
 - Flow (password reset): `AuthService` → `queue.Publisher` → queue `email.password_reset` → `cmd/worker` → `mailer.Mailer` (Gmail SMTP).
-- Worker: `task worker:run` (requires RabbitMQ + `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD`).
-- Env: `RABBITMQ_URL`, `APP_PUBLIC_URL` (reset link base), `GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`.
+- Worker image: `backend/Dockerfile.worker` (Compose service `worker`). Local alternative: `task worker:run`.
+- Compose injects `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` from project `.env` (not `.env.local` — put secrets in `.env` for Docker).
+- Env: `RABBITMQ_URL`, `APP_PUBLIC_URL` (reset link base, API), `GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`.
 - MinIO remains **commented** in `docker-compose.yml`.
 - **Gmail:** SMTP via Google account **app password** (`smtp.gmail.com:587`). Not OAuth client flow.
 - Other email types (transfer recipients, etc.) are not wired yet.
@@ -192,7 +193,7 @@ Useful tasks:
 
 | Task | Purpose |
 |------|---------|
-| `task infra:up` | Build & start Postgres + RabbitMQ + API + frontend |
+| `task infra:up` | Build & start Postgres + RabbitMQ + API + worker + frontend |
 | `task infra:up:db` | Start only Postgres (hybrid local dev) |
 | `task infra:up:mq` | Start only RabbitMQ (AMQP :5672, management :15672) |
 | `task infra:down` | Stop Compose |
