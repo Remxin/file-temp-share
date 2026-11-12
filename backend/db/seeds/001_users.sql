@@ -1,6 +1,10 @@
 -- Dev seed: 1 admin + 2 users
 -- Password for all accounts: Password123!
 -- bcrypt cost 10
+--
+-- IMPORTANT: use only non-deliverable @filetemp.local addresses.
+-- Real inbox mail (Gmail password-reset, etc.) must NEVER target seed users.
+-- For end-to-end mail tests, register a real account yourself — do not edit seeds.
 
 INSERT INTO users (id, email, password_hash, role, is_active)
 VALUES

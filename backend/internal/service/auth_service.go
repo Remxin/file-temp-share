@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -11,28 +12,35 @@ import (
 
 	"file-temp-share/backend/internal/auth"
 	"file-temp-share/backend/internal/domain"
+	"file-temp-share/backend/internal/queue"
 	"file-temp-share/backend/internal/repository"
 )
 
 const passwordResetTTL = time.Hour
 
 type AuthService struct {
-	users    *repository.UserRepository
-	resets   *repository.PasswordResetRepository
-	tokens   *auth.TokenManager
-	resetTTL time.Duration
+	users        *repository.UserRepository
+	resets       *repository.PasswordResetRepository
+	tokens       *auth.TokenManager
+	publisher    queue.Publisher
+	appPublicURL string
+	resetTTL     time.Duration
 }
 
 func NewAuthService(
 	users *repository.UserRepository,
 	resets *repository.PasswordResetRepository,
 	tokens *auth.TokenManager,
+	publisher queue.Publisher,
+	appPublicURL string,
 ) *AuthService {
 	return &AuthService{
-		users:    users,
-		resets:   resets,
-		tokens:   tokens,
-		resetTTL: passwordResetTTL,
+		users:        users,
+		resets:       resets,
+		tokens:       tokens,
+		publisher:    publisher,
+		appPublicURL: strings.TrimRight(appPublicURL, "/"),
+		resetTTL:     passwordResetTTL,
 	}
 }
 
@@ -84,8 +92,9 @@ func (s *AuthService) GetByID(ctx context.Context, id uuid.UUID) (domain.User, e
 	return user, nil
 }
 
-// RequestPasswordReset always succeeds from the caller's perspective (no email enumeration).
-// Mail sending is not implemented yet — the raw token is logged for local/dev use.
+// RequestPasswordReset always succeeds from the caller's perspective when the
+// user is missing/inactive (no email enumeration). When a token is created,
+// a password-reset email job is enqueued.
 func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) error {
 	email = normalizeEmail(email)
 	user, err := s.users.GetByEmail(ctx, email)
@@ -111,9 +120,19 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 		return err
 	}
 
-	slog.Info("password reset token created (mailer not implemented)",
+	resetURL := fmt.Sprintf("%s/reset-password/confirm?token=%s", s.appPublicURL, raw)
+	msg := queue.PasswordResetEmailMessage{
+		Type:        queue.TypePasswordReset,
+		To:          user.Email,
+		ResetURL:    resetURL,
+		RequestedAt: time.Now().UTC(),
+	}
+	if err := s.publisher.PublishPasswordReset(ctx, msg); err != nil {
+		return fmt.Errorf("enqueue password reset email: %w", err)
+	}
+
+	slog.Info("password reset email enqueued",
 		"email", user.Email,
-		"token", raw,
 		"expires_at", expiresAt,
 	)
 	return nil

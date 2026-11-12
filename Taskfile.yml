@@ -25,7 +25,7 @@ tasks:
       - "{{.MIGRATE_BIN}} -version"
 
   infra:up:
-    desc: Build and start Postgres, API, and frontend (ports 5432 / 8080 / 3000)
+    desc: Build and start Postgres, RabbitMQ, API, worker, and frontend
     cmds:
       - docker compose up -d --build
 
@@ -33,6 +33,11 @@ tasks:
     desc: Start only PostgreSQL (for local api/frontend via task)
     cmds:
       - docker compose up -d postgres
+
+  infra:up:mq:
+    desc: Start only RabbitMQ (AMQP :5672, management :15672)
+    cmds:
+      - docker compose up -d rabbitmq
 
   infra:down:
     desc: Stop Compose services
@@ -86,7 +91,7 @@ tasks:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/api"'
 
   worker:run:
-    desc: Run worker stub locally
+    desc: Run async worker (RabbitMQ + GMAIL_APP_LOGIN/PASSWORD in .env/.env.local)
     cmds:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go run ./cmd/worker"'
 
