@@ -13,13 +13,15 @@ import (
 )
 
 type Dependencies struct {
-	AuthHandler  *handler.AuthHandler
-	TokenManager *auth.TokenManager
+	AuthHandler     *handler.AuthHandler
+	TransferHandler *handler.TransferHandler
+	TokenManager    *auth.TokenManager
 }
 
 // New builds the Gin engine with health, swagger and API routes.
 func New(deps Dependencies) *gin.Engine {
 	r := gin.New()
+	r.MaxMultipartMemory = 32 << 20 // 32 MiB; larger parts spill to temp disk
 	r.Use(gin.Logger(), gin.Recovery(), corsMiddleware())
 
 	r.GET("/health", health)
@@ -34,6 +36,23 @@ func New(deps Dependencies) *gin.Engine {
 			authGroup.POST("/password-reset", deps.AuthHandler.RequestPasswordReset)
 			authGroup.POST("/password-reset/confirm", deps.AuthHandler.ConfirmPasswordReset)
 			authGroup.GET("/me", middleware.AuthRequired(deps.TokenManager), deps.AuthHandler.Me)
+		}
+
+		transfers := v1.Group("/transfers")
+		transfers.Use(middleware.AuthRequired(deps.TokenManager))
+		{
+			transfers.GET("", deps.TransferHandler.List)
+			transfers.POST("", deps.TransferHandler.Create)
+			transfers.GET("/:id", deps.TransferHandler.Get)
+			transfers.POST("/:id/files", deps.TransferHandler.UploadFile)
+			transfers.GET("/:id/files/:fileId", deps.TransferHandler.DownloadOwnedFile)
+		}
+
+		publicTransfers := v1.Group("/public/transfers")
+		{
+			publicTransfers.GET("/:shortCode", deps.TransferHandler.GetPublic)
+			publicTransfers.POST("/:shortCode/unlock", deps.TransferHandler.UnlockPublic)
+			publicTransfers.GET("/:shortCode/files/:fileId", deps.TransferHandler.DownloadPublicFile)
 		}
 	}
 
@@ -60,7 +79,8 @@ func corsMiddleware() gin.HandlerFunc {
 		case "http://localhost:3000", "http://127.0.0.1:3000":
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, X-Transfer-Password")
+			c.Header("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Type")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {

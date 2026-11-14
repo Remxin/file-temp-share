@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"file-temp-share/backend/internal/config"
@@ -44,18 +45,29 @@ func main() {
 		}
 	}()
 
-	consumer, err := queue.NewConsumer(client)
+	passwordResetConsumer, err := queue.NewConsumer(client)
 	if err != nil {
 		slog.Error("rabbitmq consumer", "err", err)
 		os.Exit(1)
 	}
 	defer func() {
-		if err := consumer.Close(); err != nil {
-			slog.Error("consumer close", "err", err)
+		if err := passwordResetConsumer.Close(); err != nil {
+			slog.Error("password_reset consumer close", "err", err)
 		}
 	}()
 
-	handler := func(ctx context.Context, msg queue.PasswordResetEmailMessage) error {
+	transferInviteConsumer, err := queue.NewConsumer(client)
+	if err != nil {
+		slog.Error("rabbitmq transfer_invite consumer", "err", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := transferInviteConsumer.Close(); err != nil {
+			slog.Error("transfer_invite consumer close", "err", err)
+		}
+	}()
+
+	passwordResetHandler := func(ctx context.Context, msg queue.PasswordResetEmailMessage) error {
 		slog.Info("sending password_reset email",
 			"to", msg.To,
 			"requested_at", msg.RequestedAt,
@@ -67,11 +79,55 @@ func main() {
 		return gmail.Send(ctx, email)
 	}
 
+	transferInviteHandler := func(ctx context.Context, msg queue.TransferInviteEmailMessage) error {
+		slog.Info("sending transfer_invite email",
+			"to", msg.To,
+			"file", msg.FileName,
+			"sent_at", msg.SentAt,
+		)
+		email, err := mailer.TransferInviteEmail(
+			msg.To,
+			msg.DownloadURL,
+			msg.Title,
+			msg.Message,
+			msg.FileName,
+			msg.FileSizeBytes,
+			msg.FileCount,
+			msg.ExpiresAt,
+		)
+		if err != nil {
+			return err
+		}
+		return gmail.Send(ctx, email)
+	}
+
 	slog.Info("worker started", "rabbitmq", cfg.RabbitMQURL, "from", cfg.GmailAppLogin)
-	err = consumer.Run(ctx, handler)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		slog.Error("worker stopped", "err", err)
-		os.Exit(1)
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if runErr := passwordResetConsumer.Run(ctx, passwordResetHandler); runErr != nil {
+			errCh <- runErr
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if runErr := transferInviteConsumer.RunTransferInvite(ctx, transferInviteHandler); runErr != nil {
+			errCh <- runErr
+		}
+	}()
+
+	wg.Wait()
+	close(errCh)
+
+	for runErr := range errCh {
+		if runErr != nil && !errors.Is(runErr, context.Canceled) {
+			slog.Error("worker stopped", "err", runErr)
+			os.Exit(1)
+		}
 	}
 	slog.Info("worker shut down")
 }

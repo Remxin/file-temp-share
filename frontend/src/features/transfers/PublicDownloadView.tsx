@@ -1,16 +1,72 @@
 "use client";
 
 import Link from "next/link";
+import { FormEvent, useState } from "react";
 
+import { Alert } from "@/components/ui/Alert";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
-import { useGetPublicTransferQuery } from "@/features/transfers/transfersApi";
+import { TextField } from "@/components/ui/TextField";
+import {
+  useGetPublicTransferQuery,
+  useUnlockPublicTransferMutation,
+} from "@/features/transfers/transfersApi";
+import { getApiErrorMessage } from "@/lib/apiError";
+import { downloadFile } from "@/lib/downloadFile";
+import {
+  displayTitle,
+  formatBytes,
+  formatExpiresAt,
+} from "@/lib/format";
+import type { TransferFile } from "@/lib/types/transfer";
 
 export function PublicDownloadView({ slug }: { slug: string }) {
   const { data, isLoading, isError } = useGetPublicTransferQuery(slug);
+  const [unlock, unlockState] = useUnlockPublicTransferMutation();
+  const [password, setPassword] = useState("");
+  const [unlockedPassword, setUnlockedPassword] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  async function onUnlock(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    try {
+      await unlock({ shortCode: slug, password }).unwrap();
+      setUnlockedPassword(password);
+    } catch (err) {
+      setFormError(getApiErrorMessage(err, "Invalid password"));
+    }
+  }
+
+  async function onDownload(file: TransferFile) {
+    setDownloadError(null);
+    setDownloadingId(file.id);
+    try {
+      await downloadFile({
+        path: `/api/v1/public/transfers/${slug}/files/${file.id}`,
+        filename: file.original_name,
+        transferPassword: unlockedPassword ?? undefined,
+      });
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Download failed",
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  async function onDownloadAll() {
+    if (!data?.files.length) return;
+    for (const file of data.files) {
+      await onDownload(file);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -37,7 +93,7 @@ export function PublicDownloadView({ slug }: { slug: string }) {
     );
   }
 
-  if (data.status === "expired" || slug === "expired") {
+  if (data.status === "expired") {
     return (
       <div className="flex min-h-dvh flex-col">
         <header className="border-b border-outline-variant/30 px-4 py-3 sm:px-6">
@@ -63,9 +119,9 @@ export function PublicDownloadView({ slug }: { slug: string }) {
               </p>
             </div>
             <div className="rounded-xl bg-surface-container-low p-4 text-left">
-              <p className="font-semibold">{data.title}</p>
+              <p className="font-semibold">{displayTitle(data.title)}</p>
               <p className="text-sm text-on-surface-variant">
-                {data.expiresAtLabel}
+                {formatExpiresAt(data.expires_at)}
               </p>
             </div>
             <Link href="/" className="inline-block w-full">
@@ -78,6 +134,8 @@ export function PublicDownloadView({ slug }: { slug: string }) {
       </div>
     );
   }
+
+  const needsPassword = data.has_password && !data.unlocked;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -100,47 +158,104 @@ export function PublicDownloadView({ slug }: { slug: string }) {
           <div className="text-center sm:text-left">
             <p className="text-sm text-on-surface-variant">
               <span className="font-semibold text-on-surface">
-                {data.senderName}
+                {data.sender_email || "Someone"}
               </span>{" "}
               shared a file with you
             </p>
-            <h1 className="mt-2 text-2xl font-bold">{data.title}</h1>
+            <h1 className="mt-2 text-2xl font-bold">
+              {displayTitle(data.title)}
+            </h1>
             <p className="mt-2 inline-flex items-center gap-1 text-sm text-on-surface-variant">
               <Icon name="schedule" className="text-[1rem]" />
-              {data.expiresAtLabel}
+              {formatExpiresAt(data.expires_at)}
             </p>
           </div>
 
-          {data.message ? (
-            <blockquote className="rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              {data.message}
-            </blockquote>
-          ) : null}
-
-          <div className="space-y-2">
-            {data.files.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center gap-3 rounded-xl bg-surface-container-low p-3"
+          {needsPassword ? (
+            <form className="space-y-3" onSubmit={onUnlock}>
+              <Alert variant="info">
+                This transfer is password protected. Enter the password to view
+                and download files.
+              </Alert>
+              {formError ? <Alert variant="error">{formError}</Alert> : null}
+              <TextField
+                label="Password"
+                name="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leadingIcon={<Icon name="lock" />}
+              />
+              <Button
+                type="submit"
+                fullWidth
+                disabled={unlockState.isLoading || !password.trim()}
               >
-                <Icon name="picture_as_pdf" className="text-primary" />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{f.name}</p>
-                  <p className="text-xs text-on-surface-variant">
-                    {f.sizeLabel} • PDF Document
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                {unlockState.isLoading ? "Unlocking…" : "Unlock transfer"}
+              </Button>
+            </form>
+          ) : (
+            <>
+              {data.message ? (
+                <blockquote className="rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  {data.message}
+                </blockquote>
+              ) : null}
 
-          <Button fullWidth>
-            <Icon name="download" />
-            Download File ({data.totalSizeLabel})
-          </Button>
+              {downloadError ? (
+                <Alert variant="error">{downloadError}</Alert>
+              ) : null}
+
+              <div className="space-y-2">
+                {data.files.map((f) => (
+                  <div
+                    key={f.id}
+                    className="flex flex-col gap-2 rounded-xl bg-surface-container-low p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Icon name="description" className="text-primary" />
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">
+                          {f.original_name}
+                        </p>
+                        <p className="text-xs text-on-surface-variant">
+                          {formatBytes(f.size_bytes)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={() => onDownload(f)}
+                      disabled={downloadingId === f.id}
+                    >
+                      <Icon name="download" />
+                      {downloadingId === f.id ? "…" : "Download"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                fullWidth
+                onClick={onDownloadAll}
+                disabled={!data.files.length || downloadingId !== null}
+              >
+                <Icon name="download" />
+                Download{" "}
+                {data.files.length === 1
+                  ? "File"
+                  : "All"}{" "}
+                ({formatBytes(data.total_size_bytes)})
+              </Button>
+            </>
+          )}
 
           <p className="text-center text-xs text-outline">
-            <Icon name="verified_user" className="mr-1 align-middle text-[1rem]" />
+            <Icon
+              name="verified_user"
+              className="mr-1 align-middle text-[1rem]"
+            />
             No account needed. This link expires automatically.
           </p>
 

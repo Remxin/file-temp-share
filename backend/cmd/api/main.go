@@ -16,6 +16,7 @@ import (
 	"file-temp-share/backend/internal/repository"
 	"file-temp-share/backend/internal/server"
 	"file-temp-share/backend/internal/service"
+	"file-temp-share/backend/internal/storage"
 )
 
 //	@title						file-temp-share API
@@ -71,15 +72,33 @@ func main() {
 		}
 	}()
 
+	blobs, err := storage.NewMinIO(storage.MinIOConfig{
+		Endpoint:  cfg.MinIOEndpoint,
+		AccessKey: cfg.MinIOAccessKey,
+		SecretKey: cfg.MinIOSecretKey,
+		Bucket:    cfg.MinIOBucket,
+		UseSSL:    cfg.MinIOUseSSL,
+	})
+	if err != nil {
+		slog.Error("minio", "err", err)
+		os.Exit(1)
+	}
+
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.JWTTTL)
 	userRepo := repository.NewUserRepository(pool)
 	resetRepo := repository.NewPasswordResetRepository(pool)
+	transferRepo := repository.NewTransferRepository(pool)
+
 	authService := service.NewAuthService(userRepo, resetRepo, tokenManager, publisher, cfg.AppPublicURL)
+	transferService := service.NewTransferService(transferRepo, userRepo, blobs, publisher, cfg.AppPublicURL, cfg.UploadMaxBytes)
+
 	authHandler := handler.NewAuthHandler(authService)
+	transferHandler := handler.NewTransferHandler(transferService, cfg.UploadMaxBytes)
 
 	engine := server.New(server.Dependencies{
-		AuthHandler:  authHandler,
-		TokenManager: tokenManager,
+		AuthHandler:     authHandler,
+		TransferHandler: transferHandler,
+		TokenManager:    tokenManager,
 	})
 
 	go func() {
@@ -91,6 +110,9 @@ func main() {
 		"addr", cfg.HTTPAddr,
 		"swagger", "http://"+cfg.SwaggerHost+"/swagger/index.html",
 		"jwt_ttl", cfg.JWTTTL.String(),
+		"minio", cfg.MinIOEndpoint,
+		"bucket", cfg.MinIOBucket,
+		"upload_max_bytes", cfg.UploadMaxBytes,
 	)
 	if err := engine.Run(cfg.HTTPAddr); err != nil {
 		slog.Error("server stopped", "err", err)

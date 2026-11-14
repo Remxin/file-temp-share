@@ -12,10 +12,13 @@ const (
 	QueuePasswordReset      = "email.password_reset"
 	RoutingKeyPasswordReset = "email.password_reset"
 
+	QueueTransferInvite      = "email.transfer_invite"
+	RoutingKeyTransferInvite = "email.transfer_invite"
+
 	prefetchCount = 1
 )
 
-// Declare ensures the emails topic exchange, password-reset queue, and binding exist.
+// Declare ensures the emails topic exchange, email queues, and bindings exist.
 // Safe to call on every process start (idempotent).
 func Declare(ch *amqp.Channel) error {
 	if err := ch.ExchangeDeclare(
@@ -30,26 +33,36 @@ func Declare(ch *amqp.Channel) error {
 		return fmt.Errorf("declare exchange %q: %w", ExchangeEmails, err)
 	}
 
+	if err := declareBoundQueue(ch, QueuePasswordReset, RoutingKeyPasswordReset); err != nil {
+		return err
+	}
+	if err := declareBoundQueue(ch, QueueTransferInvite, RoutingKeyTransferInvite); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func declareBoundQueue(ch *amqp.Channel, queueName, routingKey string) error {
 	if _, err := ch.QueueDeclare(
-		QueuePasswordReset,
+		queueName,
 		true,  // durable
 		false, // auto-delete
 		false, // exclusive
 		false, // no-wait
 		nil,
 	); err != nil {
-		return fmt.Errorf("declare queue %q: %w", QueuePasswordReset, err)
+		return fmt.Errorf("declare queue %q: %w", queueName, err)
 	}
 
 	if err := ch.QueueBind(
-		QueuePasswordReset,
-		RoutingKeyPasswordReset,
+		queueName,
+		routingKey,
 		ExchangeEmails,
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("bind queue %q to %q: %w", QueuePasswordReset, ExchangeEmails, err)
+		return fmt.Errorf("bind queue %q to %q: %w", queueName, ExchangeEmails, err)
 	}
-
 	return nil
 }
