@@ -18,7 +18,7 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Initial migration (`users` / `transfers` / `files`) + user seed | Done |
 | Migrations: `000001` init (incl. `blocked`) + `000002` recipients/logs; user seed | Done |
 | REST CRUD, sqlc queries | Not started |
-| Next.js frontend (App Router + auth/transfers UI) | Done for create/list/detail/public (upload wired; download/delete later) |
+| Next.js frontend (App Router + auth/transfers UI) | Done for create/list/detail/public download + password unlock (delete later) |
 | JWT auth (single token: register/login/me/password-reset) | Done (reset enqueues email job) |
 | Local disk storage | Superseded by MinIO for blobs |
 | MinIO (S3) | Done — Compose `minio` + `minio-init` (bucket); API proxy upload via `storage.Storage` |

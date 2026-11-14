@@ -51,6 +51,16 @@ SELECT COUNT(*)::bigint AS count
 FROM transfer_recipients
 WHERE transfer_id = $1;
 
+-- name: IncrementTransferDownloadCount :one
+UPDATE transfers
+SET download_count = download_count + 1
+WHERE id = $1
+RETURNING *;
+
+-- name: CreateDownloadLog :exec
+INSERT INTO download_logs (transfer_id, file_id, ip_address, user_agent)
+VALUES ($1, $2, $3, $4);
+
 -- name: CreateTransferRecipient :one
 INSERT INTO transfer_recipients (transfer_id, email)
 VALUES ($1, $2)

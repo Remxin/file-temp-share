@@ -52,10 +52,15 @@ type PublicTransferResponse struct {
 	Status         string         `json:"status"`
 	ExpiresAt      time.Time      `json:"expires_at"`
 	HasPassword    bool           `json:"has_password"`
+	Unlocked       bool           `json:"unlocked"`
 	SenderEmail    string         `json:"sender_email"`
 	Files          []FileResponse `json:"files"`
 	FileCount      int64          `json:"file_count"`
 	TotalSizeBytes int64          `json:"total_size_bytes"`
+}
+
+type UnlockTransferRequest struct {
+	Password string `json:"password" binding:"required,min=1,max=72"`
 }
 
 type FileResponse struct {

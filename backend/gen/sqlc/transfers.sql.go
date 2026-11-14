@@ -26,6 +26,28 @@ func (q *Queries) CountRecipientsByTransferID(ctx context.Context, transferID uu
 	return count, err
 }
 
+const createDownloadLog = `-- name: CreateDownloadLog :exec
+INSERT INTO download_logs (transfer_id, file_id, ip_address, user_agent)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateDownloadLogParams struct {
+	TransferID uuid.UUID   `json:"transfer_id"`
+	FileID     pgtype.UUID `json:"file_id"`
+	IpAddress  pgtype.Text `json:"ip_address"`
+	UserAgent  pgtype.Text `json:"user_agent"`
+}
+
+func (q *Queries) CreateDownloadLog(ctx context.Context, arg CreateDownloadLogParams) error {
+	_, err := q.db.Exec(ctx, createDownloadLog,
+		arg.TransferID,
+		arg.FileID,
+		arg.IpAddress,
+		arg.UserAgent,
+	)
+	return err
+}
+
 const createTransfer = `-- name: CreateTransfer :one
 INSERT INTO transfers (
     user_id,
@@ -131,6 +153,32 @@ LIMIT 1
 
 func (q *Queries) GetTransferByShortCode(ctx context.Context, shortCode string) (Transfer, error) {
 	row := q.db.QueryRow(ctx, getTransferByShortCode, shortCode)
+	var i Transfer
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ShortCode,
+		&i.Title,
+		&i.Message,
+		&i.PasswordHash,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.MaxDownloads,
+		&i.DownloadCount,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const incrementTransferDownloadCount = `-- name: IncrementTransferDownloadCount :one
+UPDATE transfers
+SET download_count = download_count + 1
+WHERE id = $1
+RETURNING id, user_id, short_code, title, message, password_hash, status, expires_at, max_downloads, download_count, created_at
+`
+
+func (q *Queries) IncrementTransferDownloadCount(ctx context.Context, id uuid.UUID) (Transfer, error) {
+	row := q.db.QueryRow(ctx, incrementTransferDownloadCount, id)
 	var i Transfer
 	err := row.Scan(
 		&i.ID,

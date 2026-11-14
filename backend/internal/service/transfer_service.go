@@ -71,6 +71,13 @@ type PublicTransfer struct {
 	FileCount      int64
 	TotalSizeBytes int64
 	SenderEmail    string
+	Unlocked       bool
+}
+
+type DownloadResult struct {
+	File     domain.File
+	Body     io.ReadCloser
+	MIMEType string
 }
 
 func (s *TransferService) Create(ctx context.Context, userID uuid.UUID, in CreateTransferInput) (domain.Transfer, error) {
@@ -247,6 +254,14 @@ func (s *TransferService) GetOwned(ctx context.Context, userID, transferID uuid.
 }
 
 func (s *TransferService) GetPublic(ctx context.Context, shortCode string) (PublicTransfer, error) {
+	return s.loadPublic(ctx, shortCode, "", false)
+}
+
+func (s *TransferService) UnlockPublic(ctx context.Context, shortCode, password string) (PublicTransfer, error) {
+	return s.loadPublic(ctx, shortCode, password, true)
+}
+
+func (s *TransferService) loadPublic(ctx context.Context, shortCode, password string, requireUnlock bool) (PublicTransfer, error) {
 	transfer, err := s.transfers.GetByShortCode(ctx, shortCode)
 	if err != nil {
 		return PublicTransfer{}, err
@@ -259,6 +274,30 @@ func (s *TransferService) GetPublic(ctx context.Context, shortCode string) (Publ
 	}
 	transfer.Status = transfer.EffectiveStatus(time.Now().UTC())
 
+	hasPassword := transfer.PasswordHash != nil && *transfer.PasswordHash != ""
+	unlocked := !hasPassword
+	if hasPassword && password != "" {
+		if !auth.CheckPassword(*transfer.PasswordHash, password) {
+			return PublicTransfer{}, domain.ErrInvalidTransferPassword
+		}
+		unlocked = true
+	}
+	if requireUnlock && hasPassword && !unlocked {
+		return PublicTransfer{}, domain.ErrTransferPasswordRequired
+	}
+
+	senderEmail := ""
+	if user, userErr := s.users.GetByID(ctx, transfer.UserID); userErr == nil {
+		senderEmail = user.Email
+	}
+
+	out := PublicTransfer{
+		Transfer:    transfer,
+		SenderEmail: senderEmail,
+		Unlocked:    unlocked,
+		Files:       []domain.File{},
+	}
+
 	files, err := s.transfers.ListFiles(ctx, transfer.ID)
 	if err != nil {
 		return PublicTransfer{}, err
@@ -267,18 +306,114 @@ func (s *TransferService) GetPublic(ctx context.Context, shortCode string) (Publ
 	for _, f := range files {
 		total += f.SizeBytes
 	}
+	out.FileCount = int64(len(files))
+	out.TotalSizeBytes = total
 
-	senderEmail := ""
-	if user, userErr := s.users.GetByID(ctx, transfer.UserID); userErr == nil {
-		senderEmail = user.Email
+	// Password-protected: hide file list until unlocked.
+	if unlocked {
+		out.Files = files
+	}
+	return out, nil
+}
+
+func (s *TransferService) DownloadPublicFile(
+	ctx context.Context,
+	shortCode string,
+	fileID uuid.UUID,
+	password string,
+	ip, userAgent string,
+) (DownloadResult, error) {
+	transfer, err := s.transfers.GetByShortCode(ctx, shortCode)
+	if err != nil {
+		return DownloadResult{}, err
+	}
+	if err := s.ensureDownloadable(transfer); err != nil {
+		return DownloadResult{}, err
+	}
+	if err := s.checkTransferPassword(transfer, password); err != nil {
+		return DownloadResult{}, err
+	}
+	return s.openAndLogDownload(ctx, transfer, fileID, ip, userAgent)
+}
+
+func (s *TransferService) DownloadOwnedFile(
+	ctx context.Context,
+	userID, transferID, fileID uuid.UUID,
+	ip, userAgent string,
+) (DownloadResult, error) {
+	transfer, err := s.transfers.GetByID(ctx, transferID)
+	if err != nil {
+		return DownloadResult{}, err
+	}
+	if transfer.IsDeleted() {
+		return DownloadResult{}, domain.ErrNotFound
+	}
+	if transfer.UserID != userID {
+		return DownloadResult{}, domain.ErrForbidden
+	}
+	if err := s.ensureDownloadable(transfer); err != nil {
+		return DownloadResult{}, err
+	}
+	return s.openAndLogDownload(ctx, transfer, fileID, ip, userAgent)
+}
+
+func (s *TransferService) ensureDownloadable(transfer domain.Transfer) error {
+	if transfer.IsBlocked() {
+		return domain.ErrTransferBlocked
+	}
+	if transfer.IsExpired(time.Now().UTC()) {
+		return domain.ErrTransferExpired
+	}
+	if transfer.MaxDownloads != nil && transfer.DownloadCount >= *transfer.MaxDownloads {
+		return domain.ErrDownloadLimitReached
+	}
+	return nil
+}
+
+func (s *TransferService) checkTransferPassword(transfer domain.Transfer, password string) error {
+	if transfer.PasswordHash == nil || *transfer.PasswordHash == "" {
+		return nil
+	}
+	if strings.TrimSpace(password) == "" {
+		return domain.ErrTransferPasswordRequired
+	}
+	if !auth.CheckPassword(*transfer.PasswordHash, password) {
+		return domain.ErrInvalidTransferPassword
+	}
+	return nil
+}
+
+func (s *TransferService) openAndLogDownload(
+	ctx context.Context,
+	transfer domain.Transfer,
+	fileID uuid.UUID,
+	ip, userAgent string,
+) (DownloadResult, error) {
+	file, err := s.transfers.GetFileByID(ctx, fileID)
+	if err != nil {
+		return DownloadResult{}, err
+	}
+	if file.TransferID != transfer.ID {
+		return DownloadResult{}, domain.ErrNotFound
 	}
 
-	return PublicTransfer{
-		Transfer:       transfer,
-		Files:          files,
-		FileCount:      int64(len(files)),
-		TotalSizeBytes: total,
-		SenderEmail:    senderEmail,
+	body, err := s.blobs.Get(ctx, file.StorageKey)
+	if err != nil {
+		return DownloadResult{}, fmt.Errorf("storage get: %w", err)
+	}
+
+	if _, err := s.transfers.IncrementDownloadCount(ctx, transfer.ID); err != nil {
+		_ = body.Close()
+		return DownloadResult{}, err
+	}
+	if err := s.transfers.CreateDownloadLog(ctx, transfer.ID, &file.ID, ip, userAgent); err != nil {
+		slog.Warn("download log failed", "transfer_id", transfer.ID, "file_id", file.ID, "err", err)
+	}
+
+	return DownloadResult{
+		File:     file,
+		Body:     body,
+		MIMEType: file.MimeType,
 	}, nil
 }
 

@@ -52,6 +52,27 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 	return i, err
 }
 
+const getFileByID = `-- name: GetFileByID :one
+SELECT id, transfer_id, original_name, storage_key, mime_type, size_bytes, created_at FROM files
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetFileByID(ctx context.Context, id uuid.UUID) (File, error) {
+	row := q.db.QueryRow(ctx, getFileByID, id)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.TransferID,
+		&i.OriginalName,
+		&i.StorageKey,
+		&i.MimeType,
+		&i.SizeBytes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listFilesByTransferID = `-- name: ListFilesByTransferID :many
 SELECT id, transfer_id, original_name, storage_key, mime_type, size_bytes, created_at FROM files
 WHERE transfer_id = $1

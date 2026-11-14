@@ -43,6 +43,12 @@ func Abort(c *gin.Context, err error) {
 		c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, ErrorBody{Error: "file too large"})
 	case errors.Is(err, domain.ErrEmptyFile):
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: "empty file"})
+	case errors.Is(err, domain.ErrInvalidTransferPassword):
+		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: "invalid transfer password"})
+	case errors.Is(err, domain.ErrTransferPasswordRequired):
+		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorBody{Error: "transfer password required"})
+	case errors.Is(err, domain.ErrDownloadLimitReached):
+		c.AbortWithStatusJSON(http.StatusForbidden, ErrorBody{Error: "download limit reached"})
 	default:
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {

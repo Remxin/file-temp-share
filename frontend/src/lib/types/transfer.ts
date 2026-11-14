@@ -42,6 +42,7 @@ export type PublicTransfer = {
   status: TransferStatus | string;
   expires_at: string;
   has_password: boolean;
+  unlocked: boolean;
   sender_email: string;
   files: TransferFile[];
   file_count: number;

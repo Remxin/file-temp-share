@@ -33,6 +33,30 @@ export const transfersApi = baseApi.injectEndpoints({
     getPublicTransfer: build.query<PublicTransfer, string>({
       query: (shortCode) => `/api/v1/public/transfers/${shortCode}`,
     }),
+    unlockPublicTransfer: build.mutation<
+      PublicTransfer,
+      { shortCode: string; password: string }
+    >({
+      query: ({ shortCode, password }) => ({
+        url: `/api/v1/public/transfers/${shortCode}/unlock`,
+        method: "POST",
+        body: { password },
+      }),
+      async onQueryStarted({ shortCode }, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            transfersApi.util.updateQueryData(
+              "getPublicTransfer",
+              shortCode,
+              () => data,
+            ),
+          );
+        } catch {
+          /* form handles error */
+        }
+      },
+    }),
     createTransfer: build.mutation<Transfer, CreateTransferRequest>({
       query: (body) => ({
         url: "/api/v1/transfers",
@@ -66,6 +90,7 @@ export const {
   useListTransfersQuery,
   useGetTransferQuery,
   useGetPublicTransferQuery,
+  useUnlockPublicTransferMutation,
   useCreateTransferMutation,
   useUploadTransferFileMutation,
 } = transfersApi;

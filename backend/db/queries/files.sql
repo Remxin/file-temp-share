@@ -9,6 +9,11 @@ INSERT INTO files (
     $1, $2, $3, $4, $5
 ) RETURNING *;
 
+-- name: GetFileByID :one
+SELECT * FROM files
+WHERE id = $1
+LIMIT 1;
+
 -- name: ListFilesByTransferID :many
 SELECT * FROM files
 WHERE transfer_id = $1

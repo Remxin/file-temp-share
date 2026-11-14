@@ -2,7 +2,10 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +17,8 @@ import (
 	"file-temp-share/backend/internal/platform/httpx"
 	"file-temp-share/backend/internal/service"
 )
+
+const transferPasswordHeader = "X-Transfer-Password"
 
 type TransferHandler struct {
 	transfers      *service.TransferService
@@ -157,18 +162,157 @@ func (h *TransferHandler) GetPublic(c *gin.Context) {
 		httpx.Abort(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.PublicTransferResponse{
+	c.JSON(http.StatusOK, mapPublicTransfer(detail))
+}
+
+// UnlockPublic godoc
+//
+//	@Summary		Unlock password-protected public transfer
+//	@Tags			public
+//	@Accept			json
+//	@Produce		json
+//	@Param			shortCode	path		string						true	"short code"
+//	@Param			body		body		dto.UnlockTransferRequest	true	"password"
+//	@Success		200			{object}	dto.PublicTransferResponse
+//	@Failure		401			{object}	httpx.ErrorBody
+//	@Failure		404			{object}	httpx.ErrorBody
+//	@Router			/api/v1/public/transfers/{shortCode}/unlock [post]
+func (h *TransferHandler) UnlockPublic(c *gin.Context) {
+	shortCode := strings.TrimSpace(c.Param("shortCode"))
+	if shortCode == "" {
+		httpx.Abort(c, domain.ErrNotFound)
+		return
+	}
+	var req dto.UnlockTransferRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	detail, err := h.transfers.UnlockPublic(c.Request.Context(), shortCode, req.Password)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapPublicTransfer(detail))
+}
+
+// DownloadPublicFile godoc
+//
+//	@Summary		Download public transfer file
+//	@Tags			public
+//	@Produce		application/octet-stream
+//	@Param			shortCode	path		string	true	"short code"
+//	@Param			fileId		path		string	true	"file id"
+//	@Param			X-Transfer-Password	header	string	false	"transfer password when required"
+//	@Success		200
+//	@Failure		401	{object}	httpx.ErrorBody
+//	@Failure		403	{object}	httpx.ErrorBody
+//	@Failure		404	{object}	httpx.ErrorBody
+//	@Failure		410	{object}	httpx.ErrorBody
+//	@Router			/api/v1/public/transfers/{shortCode}/files/{fileId} [get]
+func (h *TransferHandler) DownloadPublicFile(c *gin.Context) {
+	shortCode := strings.TrimSpace(c.Param("shortCode"))
+	fileID, err := uuid.Parse(c.Param("fileId"))
+	if err != nil || shortCode == "" {
+		httpx.Abort(c, domain.ErrNotFound)
+		return
+	}
+	password := c.GetHeader(transferPasswordHeader)
+	result, err := h.transfers.DownloadPublicFile(
+		c.Request.Context(),
+		shortCode,
+		fileID,
+		password,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	streamDownload(c, result)
+}
+
+// DownloadOwnedFile godoc
+//
+//	@Summary		Download own transfer file
+//	@Tags			transfers
+//	@Produce		application/octet-stream
+//	@Security		BearerAuth
+//	@Param			id		path	string	true	"transfer id"
+//	@Param			fileId	path	string	true	"file id"
+//	@Success		200
+//	@Failure		401	{object}	httpx.ErrorBody
+//	@Failure		403	{object}	httpx.ErrorBody
+//	@Failure		404	{object}	httpx.ErrorBody
+//	@Failure		410	{object}	httpx.ErrorBody
+//	@Router			/api/v1/transfers/{id}/files/{fileId} [get]
+func (h *TransferHandler) DownloadOwnedFile(c *gin.Context) {
+	userID, ok := middleware.UserID(c)
+	if !ok {
+		httpx.Abort(c, domain.ErrUnauthorized)
+		return
+	}
+	transferID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httpx.Abort(c, domain.ErrNotFound)
+		return
+	}
+	fileID, err := uuid.Parse(c.Param("fileId"))
+	if err != nil {
+		httpx.Abort(c, domain.ErrNotFound)
+		return
+	}
+	result, err := h.transfers.DownloadOwnedFile(
+		c.Request.Context(),
+		userID,
+		transferID,
+		fileID,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	streamDownload(c, result)
+}
+
+func mapPublicTransfer(detail service.PublicTransfer) dto.PublicTransferResponse {
+	return dto.PublicTransferResponse{
 		ShortCode:      detail.Transfer.ShortCode,
 		Title:          detail.Transfer.Title,
 		Message:        detail.Transfer.Message,
 		Status:         detail.Transfer.Status,
 		ExpiresAt:      detail.Transfer.ExpiresAt,
 		HasPassword:    detail.Transfer.PasswordHash != nil && *detail.Transfer.PasswordHash != "",
+		Unlocked:       detail.Unlocked,
 		SenderEmail:    detail.SenderEmail,
 		Files:          dto.NewFileResponses(detail.Files),
 		FileCount:      detail.FileCount,
 		TotalSizeBytes: detail.TotalSizeBytes,
-	})
+	}
+}
+
+func streamDownload(c *gin.Context, result service.DownloadResult) {
+	defer result.Body.Close()
+	name := result.File.OriginalName
+	if name == "" {
+		name = "download"
+	}
+	safeName := strings.ReplaceAll(name, `"`, "")
+	mime := result.MIMEType
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	c.Header("Content-Type", mime)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, safeName))
+	c.Header("Content-Length", strconv.FormatInt(result.File.SizeBytes, 10))
+	c.Status(http.StatusOK)
+	if _, err := io.Copy(c.Writer, result.Body); err != nil {
+		// Client may disconnect mid-stream; nothing useful to JSON here.
+		return
+	}
 }
 
 // UploadFile godoc

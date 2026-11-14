@@ -3,22 +3,27 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { useGetTransferQuery } from "@/features/transfers/transfersApi";
 import { cn } from "@/lib/cn";
+import { downloadFile } from "@/lib/downloadFile";
 import {
   displayTitle,
   formatBytes,
   formatDateTime,
   formatExpiresAt,
 } from "@/lib/format";
+import type { TransferFile } from "@/lib/types/transfer";
 
 export function TransferDetailView({ id }: { id: string }) {
   const { data, isLoading, isError } = useGetTransferQuery(id);
   const [copied, setCopied] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -45,6 +50,24 @@ export function TransferDetailView({ id }: { id: string }) {
     await navigator.clipboard.writeText(data!.share_url);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function onDownload(file: TransferFile) {
+    setDownloadError(null);
+    setDownloadingId(file.id);
+    try {
+      await downloadFile({
+        path: `/api/v1/transfers/${id}/files/${file.id}`,
+        filename: file.original_name,
+        useAuth: true,
+      });
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Download failed",
+      );
+    } finally {
+      setDownloadingId(null);
+    }
   }
 
   return (
@@ -74,6 +97,12 @@ export function TransferDetailView({ id }: { id: string }) {
               >
                 {expired ? "Expired" : "Active"}
               </span>
+              {data.has_password ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-xs font-semibold text-on-surface-variant">
+                  <Icon name="lock" className="text-[0.9rem]" />
+                  Password
+                </span>
+              ) : null}
             </div>
             <p className="text-sm text-on-surface-variant">
               {formatBytes(data.total_size_bytes)} • Uploaded{" "}
@@ -110,6 +139,8 @@ export function TransferDetailView({ id }: { id: string }) {
           </blockquote>
         ) : null}
 
+        {downloadError ? <Alert variant="error">{downloadError}</Alert> : null}
+
         <div className="space-y-2">
           <h2 className="text-sm font-semibold">Files</h2>
           {data.files.length === 0 ? (
@@ -129,9 +160,13 @@ export function TransferDetailView({ id }: { id: string }) {
                     </p>
                   </div>
                 </div>
-                <Button variant="secondary" disabled title="Download comes next">
+                <Button
+                  variant="secondary"
+                  disabled={expired || downloadingId === f.id}
+                  onClick={() => onDownload(f)}
+                >
                   <Icon name="download" />
-                  Download
+                  {downloadingId === f.id ? "…" : "Download"}
                 </Button>
               </div>
             ))

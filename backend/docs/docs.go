@@ -260,6 +260,120 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/public/transfers/{shortCode}/files/{fileId}": {
+            "get": {
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Download public transfer file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "short code",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "file id",
+                        "name": "fileId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "transfer password when required",
+                        "name": "X-Transfer-Password",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/public/transfers/{shortCode}/unlock": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Unlock password-protected public transfer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "short code",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_dto.UnlockTransferRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_dto.PublicTransferResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/transfers": {
             "get": {
                 "security": [
@@ -490,6 +604,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/transfers/{id}/files/{fileId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "transfers"
+                ],
+                "summary": "Download own transfer file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "transfer id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "file id",
+                        "name": "fileId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Returns service liveness",
@@ -668,6 +843,9 @@ const docTemplate = `{
                 },
                 "total_size_bytes": {
                     "type": "integer"
+                },
+                "unlocked": {
+                    "type": "boolean"
                 }
             }
         },
@@ -817,6 +995,19 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "file-temp-share_backend_internal_dto.UnlockTransferRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 1
                 }
             }
         },
