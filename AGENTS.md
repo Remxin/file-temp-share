@@ -23,8 +23,9 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | Local disk storage | Superseded by MinIO for blobs |
 | MinIO (S3) | Done — Compose `minio` + `minio-init` (bucket); API proxy upload via `storage.Storage` |
 | Transfer create + file upload API | Done — `POST /api/v1/transfers`, `POST /api/v1/transfers/:id/files` (multipart) |
-| RabbitMQ + worker | Done — Compose service `worker` (`Dockerfile.worker`); password-reset mail via Gmail SMTP |
+| RabbitMQ + worker | Done — Compose service `worker` (`Dockerfile.worker`); password-reset + transfer-invite mail via Gmail SMTP |
 | Gmail mailer (SMTP app password) | Done — `internal/mailer`; secrets in `.env` / `.env.local` only |
+| Transfer recipient invite emails | Done — enqueued on first file upload; queue `email.transfer_invite` |
 
 ## Stack
 
@@ -161,15 +162,17 @@ Current topology (declared idempotently by publisher/consumer):
 | Exchange | `filetemp.emails` (topic, durable) |
 | Queue | `email.password_reset` (durable) |
 | Routing key | `email.password_reset` |
+| Queue | `email.transfer_invite` (durable) |
+| Routing key | `email.transfer_invite` |
 
 - RabbitMQ + worker run in Compose (`task infra:up` / `task infra:up:mq`). Management UI: `http://localhost:15672` (guest/guest).
 - Flow (password reset): `AuthService` → `queue.Publisher` → queue `email.password_reset` → `cmd/worker` → `mailer.Mailer` (Gmail SMTP).
+- Flow (transfer invite): `TransferService` (after first file upload) → `queue.Publisher` → queue `email.transfer_invite` → `cmd/worker` → `mailer.Mailer`. Email includes transfer title/message when set, file summary, download URL, and expiry.
 - Worker image: `backend/Dockerfile.worker` (Compose service `worker`). Local alternative: `task worker:run`.
 - Compose injects `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` from project `.env` (not `.env.local` — put secrets in `.env` for Docker).
-- Env: `RABBITMQ_URL`, `APP_PUBLIC_URL` (reset link base, API), `GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`.
+- Env: `RABBITMQ_URL`, `APP_PUBLIC_URL` (reset/download link base, frontend), `GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`.
 - MinIO/Silo: Compose `minio` + one-shot `minio-init` (`mc mb` bucket). No MinIO YAML — credentials/bucket from `.env` / Compose env. API does **not** create buckets on boot (same rule as migrations). Console: `http://localhost:9001`.
 - **Gmail:** SMTP via Google account **app password** (`smtp.gmail.com:587`). Not OAuth client flow.
-- Other email types (transfer recipients, etc.) are not wired yet.
 
 ## Database workflow
 
@@ -195,6 +198,9 @@ Useful tasks:
 | Task | Purpose |
 |------|---------|
 | `task infra:up` | Build & start Postgres + RabbitMQ + API + worker + frontend |
+| `task infra:up:api` | Rebuild & restart only API |
+| `task infra:up:worker` | Rebuild & restart only worker |
+| `task infra:up:frontend` | Rebuild & restart only frontend |
 | `task infra:up:db` | Start only Postgres (hybrid local dev) |
 | `task infra:up:mq` | Start only RabbitMQ (AMQP :5672, management :15672) |
 | `task infra:up:minio` | Start MinIO + create `transfers` bucket (S3 :9000, console :9001) |

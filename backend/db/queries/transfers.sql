@@ -51,6 +51,12 @@ SELECT COUNT(*)::bigint AS count
 FROM transfer_recipients
 WHERE transfer_id = $1;
 
+-- name: ListRecipientEmailsByTransferID :many
+SELECT email
+FROM transfer_recipients
+WHERE transfer_id = $1
+ORDER BY created_at ASC;
+
 -- name: IncrementTransferDownloadCount :one
 UPDATE transfers
 SET download_count = download_count + 1

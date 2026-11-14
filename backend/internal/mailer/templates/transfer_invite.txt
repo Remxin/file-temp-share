@@ -1,0 +1,12 @@
+FlashShare — A file is ready for download
+
+A file has been sent to you via FlashShare. Open the link below to view and download it.
+
+{{if .Title}}Transfer name: {{.Title}}
+{{end}}{{if .Message}}Message:
+{{.Message}}
+
+{{end}}File: {{.FileName}} ({{.FileSizeLabel}} · {{.FileKindLabel}})
+Expires in {{.ExpiresInLabel}} · No registration or account needed
+
+{{.DownloadURL}}

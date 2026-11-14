@@ -29,6 +29,21 @@ tasks:
     cmds:
       - docker compose up -d --build
 
+  infra:up:api:
+    desc: Rebuild and restart only the API service
+    cmds:
+      - docker compose up -d --build api
+
+  infra:up:worker:
+    desc: Rebuild and restart only the worker service
+    cmds:
+      - docker compose up -d --build worker
+
+  infra:up:frontend:
+    desc: Rebuild and restart only the frontend service
+    cmds:
+      - docker compose up -d --build frontend
+
   infra:up:db:
     desc: Start only PostgreSQL (for local api/frontend via task)
     cmds:

@@ -196,6 +196,33 @@ func (q *Queries) IncrementTransferDownloadCount(ctx context.Context, id uuid.UU
 	return i, err
 }
 
+const listRecipientEmailsByTransferID = `-- name: ListRecipientEmailsByTransferID :many
+SELECT email
+FROM transfer_recipients
+WHERE transfer_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListRecipientEmailsByTransferID(ctx context.Context, transferID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listRecipientEmailsByTransferID, transferID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTransfersWithStatsByUserID = `-- name: ListTransfersWithStatsByUserID :many
 SELECT
     t.id,

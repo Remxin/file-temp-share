@@ -159,6 +159,14 @@ func (r *TransferRepository) CountRecipients(ctx context.Context, transferID uui
 	return n, nil
 }
 
+func (r *TransferRepository) ListRecipientEmails(ctx context.Context, transferID uuid.UUID) ([]string, error) {
+	emails, err := r.q.ListRecipientEmailsByTransferID(ctx, transferID)
+	if err != nil {
+		return nil, fmt.Errorf("list recipient emails: %w", err)
+	}
+	return emails, nil
+}
+
 func (r *TransferRepository) AddRecipient(ctx context.Context, transferID uuid.UUID, email string) error {
 	_, err := r.q.CreateTransferRecipient(ctx, sqlc.CreateTransferRecipientParams{
 		TransferID: transferID,

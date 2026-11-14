@@ -15,6 +15,7 @@ import (
 
 	"file-temp-share/backend/internal/auth"
 	"file-temp-share/backend/internal/domain"
+	"file-temp-share/backend/internal/queue"
 	"file-temp-share/backend/internal/repository"
 	"file-temp-share/backend/internal/storage"
 )
@@ -29,6 +30,7 @@ type TransferService struct {
 	transfers      *repository.TransferRepository
 	users          *repository.UserRepository
 	blobs          storage.Storage
+	publisher      queue.Publisher
 	appPublicURL   string
 	uploadMaxBytes int64
 }
@@ -37,6 +39,7 @@ func NewTransferService(
 	transfers *repository.TransferRepository,
 	users *repository.UserRepository,
 	blobs storage.Storage,
+	publisher queue.Publisher,
 	appPublicURL string,
 	uploadMaxBytes int64,
 ) *TransferService {
@@ -44,6 +47,7 @@ func NewTransferService(
 		transfers:      transfers,
 		users:          users,
 		blobs:          blobs,
+		publisher:      publisher,
 		appPublicURL:   strings.TrimRight(appPublicURL, "/"),
 		uploadMaxBytes: uploadMaxBytes,
 	}
@@ -187,7 +191,73 @@ func (s *TransferService) UploadFile(ctx context.Context, in UploadFileInput) (d
 		}
 		return domain.File{}, err
 	}
+
+	// Notify recipients once the first file makes the transfer downloadable.
+	files, listErr := s.transfers.ListFiles(ctx, transfer.ID)
+	if listErr != nil {
+		slog.Warn("list files after upload failed", "transfer_id", transfer.ID, "err", listErr)
+	} else if len(files) == 1 {
+		s.enqueueRecipientInvites(ctx, transfer, file, len(files))
+	}
+
 	return file, nil
+}
+
+func (s *TransferService) enqueueRecipientInvites(
+	ctx context.Context,
+	transfer domain.Transfer,
+	file domain.File,
+	fileCount int,
+) {
+	if s.publisher == nil {
+		return
+	}
+	emails, err := s.transfers.ListRecipientEmails(ctx, transfer.ID)
+	if err != nil {
+		slog.Warn("list recipients for invite failed", "transfer_id", transfer.ID, "err", err)
+		return
+	}
+	if len(emails) == 0 {
+		return
+	}
+
+	title := ""
+	if transfer.Title != nil {
+		title = *transfer.Title
+	}
+	message := ""
+	if transfer.Message != nil {
+		message = *transfer.Message
+	}
+	downloadURL := s.ShareURL(transfer)
+	sentAt := time.Now().UTC()
+
+	for _, email := range emails {
+		msg := queue.TransferInviteEmailMessage{
+			Type:          queue.TypeTransferInvite,
+			To:            email,
+			DownloadURL:   downloadURL,
+			Title:         title,
+			Message:       message,
+			FileName:      file.OriginalName,
+			FileSizeBytes: file.SizeBytes,
+			FileCount:     fileCount,
+			ExpiresAt:     transfer.ExpiresAt,
+			SentAt:        sentAt,
+		}
+		if err := s.publisher.PublishTransferInvite(ctx, msg); err != nil {
+			slog.Warn("enqueue transfer invite failed",
+				"transfer_id", transfer.ID,
+				"to", email,
+				"err", err,
+			)
+			continue
+		}
+		slog.Info("transfer invite email enqueued",
+			"transfer_id", transfer.ID,
+			"to", email,
+		)
+	}
 }
 
 func (s *TransferService) List(ctx context.Context, userID uuid.UUID, filter string) ([]domain.TransferListItem, error) {
