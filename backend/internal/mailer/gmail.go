@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	gmailSMTPHost = "smtp.gmail.com"
-	gmailSMTPAddr = "smtp.gmail.com:587"
+	gmailSMTPHost   = "smtp.gmail.com"
+	gmailSMTPAddr   = "smtp.gmail.com:587"
+	fromDisplayName = "FlashShare"
 )
 
 // GmailSMTP sends mail via Gmail SMTP using an app password.
 type GmailSMTP struct {
-	username string // full Gmail address (also From)
+	username string // full Gmail address (SMTP envelope + auth)
 	password string // Google app password
 }
 
@@ -47,7 +48,7 @@ func (g *GmailSMTP) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("mailer: text body is empty")
 	}
 
-	payload, err := buildMIME(g.username, to, msg)
+	payload, err := buildMIME(formatFromHeader(fromDisplayName, g.username), to, msg)
 	if err != nil {
 		return err
 	}
@@ -56,6 +57,7 @@ func (g *GmailSMTP) Send(ctx context.Context, msg Message) error {
 
 	errCh := make(chan error, 1)
 	go func() {
+		// Envelope MAIL FROM must be the bare address; display name is only in the header.
 		errCh <- smtp.SendMail(gmailSMTPAddr, auth, g.username, []string{to}, payload)
 	}()
 
@@ -104,6 +106,15 @@ func buildMIME(from, to string, msg Message) ([]byte, error) {
 
 	b.WriteString("--" + boundary + "--\r\n")
 	return []byte(b.String()), nil
+}
+
+func formatFromHeader(displayName, email string) string {
+	name := sanitizeHeader(strings.TrimSpace(displayName))
+	addr := sanitizeHeader(strings.TrimSpace(email))
+	if name == "" {
+		return addr
+	}
+	return fmt.Sprintf("%s <%s>", name, addr)
 }
 
 func sanitizeHeader(s string) string {
