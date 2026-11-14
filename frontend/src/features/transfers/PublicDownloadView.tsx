@@ -8,6 +8,11 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { useGetPublicTransferQuery } from "@/features/transfers/transfersApi";
+import {
+  displayTitle,
+  formatBytes,
+  formatExpiresAt,
+} from "@/lib/format";
 
 export function PublicDownloadView({ slug }: { slug: string }) {
   const { data, isLoading, isError } = useGetPublicTransferQuery(slug);
@@ -37,7 +42,7 @@ export function PublicDownloadView({ slug }: { slug: string }) {
     );
   }
 
-  if (data.status === "expired" || slug === "expired") {
+  if (data.status === "expired") {
     return (
       <div className="flex min-h-dvh flex-col">
         <header className="border-b border-outline-variant/30 px-4 py-3 sm:px-6">
@@ -63,9 +68,9 @@ export function PublicDownloadView({ slug }: { slug: string }) {
               </p>
             </div>
             <div className="rounded-xl bg-surface-container-low p-4 text-left">
-              <p className="font-semibold">{data.title}</p>
+              <p className="font-semibold">{displayTitle(data.title)}</p>
               <p className="text-sm text-on-surface-variant">
-                {data.expiresAtLabel}
+                {formatExpiresAt(data.expires_at)}
               </p>
             </div>
             <Link href="/" className="inline-block w-full">
@@ -100,14 +105,16 @@ export function PublicDownloadView({ slug }: { slug: string }) {
           <div className="text-center sm:text-left">
             <p className="text-sm text-on-surface-variant">
               <span className="font-semibold text-on-surface">
-                {data.senderName}
+                {data.sender_email || "Someone"}
               </span>{" "}
               shared a file with you
             </p>
-            <h1 className="mt-2 text-2xl font-bold">{data.title}</h1>
+            <h1 className="mt-2 text-2xl font-bold">
+              {displayTitle(data.title)}
+            </h1>
             <p className="mt-2 inline-flex items-center gap-1 text-sm text-on-surface-variant">
               <Icon name="schedule" className="text-[1rem]" />
-              {data.expiresAtLabel}
+              {formatExpiresAt(data.expires_at)}
             </p>
           </div>
 
@@ -123,24 +130,28 @@ export function PublicDownloadView({ slug }: { slug: string }) {
                 key={f.id}
                 className="flex items-center gap-3 rounded-xl bg-surface-container-low p-3"
               >
-                <Icon name="picture_as_pdf" className="text-primary" />
+                <Icon name="description" className="text-primary" />
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{f.name}</p>
+                  <p className="truncate font-semibold">{f.original_name}</p>
                   <p className="text-xs text-on-surface-variant">
-                    {f.sizeLabel} • PDF Document
+                    {formatBytes(f.size_bytes)}
+                    {f.mime_type ? ` • ${f.mime_type}` : ""}
                   </p>
                 </div>
               </div>
             ))}
           </div>
 
-          <Button fullWidth>
+          <Button fullWidth disabled title="Download comes next">
             <Icon name="download" />
-            Download File ({data.totalSizeLabel})
+            Download File ({formatBytes(data.total_size_bytes)})
           </Button>
 
           <p className="text-center text-xs text-outline">
-            <Icon name="verified_user" className="mr-1 align-middle text-[1rem]" />
+            <Icon
+              name="verified_user"
+              className="mr-1 align-middle text-[1rem]"
+            />
             No account needed. This link expires automatically.
           </p>
 

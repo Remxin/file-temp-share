@@ -6,19 +6,26 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import type { TransferSummary } from "@/lib/types/transfer";
+import {
+  displayTitle,
+  formatBytes,
+  formatExpiresAt,
+} from "@/lib/format";
+import type { TransferListItem } from "@/lib/types/transfer";
 
 type TransferCardProps = {
-  transfer: TransferSummary;
+  transfer: TransferListItem;
 };
 
 export function TransferCard({ transfer }: TransferCardProps) {
   const [copied, setCopied] = useState(false);
   const expired = transfer.status === "expired";
+  const fileName = transfer.first_file_name?.trim() || "No files yet";
+  const shareMode = transfer.recipient_count > 0 ? "recipients" : "public";
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(transfer.shareUrl);
+      await navigator.clipboard.writeText(transfer.share_url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -38,9 +45,9 @@ export function TransferCard({ transfer }: TransferCardProps) {
           <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-surface-container text-primary">
             <Icon
               name={
-                transfer.fileName.endsWith(".mp4")
+                fileName.endsWith(".mp4")
                   ? "video_file"
-                  : transfer.fileName.endsWith(".pdf")
+                  : fileName.endsWith(".pdf")
                     ? "picture_as_pdf"
                     : "description"
               }
@@ -49,7 +56,7 @@ export function TransferCard({ transfer }: TransferCardProps) {
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="truncate text-base font-bold text-on-surface">
-                {transfer.title}
+                {displayTitle(transfer.title)}
               </h3>
               <span
                 className={cn(
@@ -63,22 +70,24 @@ export function TransferCard({ transfer }: TransferCardProps) {
               </span>
             </div>
             <p className="text-sm text-on-surface-variant">
-              {transfer.fileCount} file • {transfer.totalSizeLabel}
+              {transfer.file_count}{" "}
+              {transfer.file_count === 1 ? "file" : "files"} •{" "}
+              {formatBytes(transfer.total_size_bytes)}
             </p>
             <p className="inline-flex items-center gap-1 text-sm text-on-surface-variant">
               <Icon name="schedule" className="text-[1rem]" />
-              {transfer.expiresAtLabel}
+              {formatExpiresAt(transfer.expires_at)}
             </p>
             <p className="inline-flex items-center gap-1 text-sm text-on-surface-variant">
               <Icon name="download" className="text-[1rem]" />
-              {transfer.downloadCount} downloads
+              {transfer.download_count} downloads
             </p>
             <p className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-outline">
               <Icon
-                name={transfer.shareMode === "public" ? "public" : "mail"}
+                name={shareMode === "public" ? "public" : "mail"}
                 className="text-[1rem]"
               />
-              {transfer.shareMode === "public" ? "Public Link" : "Recipients"}
+              {shareMode === "public" ? "Public Link" : "Recipients"}
             </p>
           </div>
         </div>
@@ -87,7 +96,7 @@ export function TransferCard({ transfer }: TransferCardProps) {
           <div className="flex min-h-11 items-center gap-1 rounded-xl bg-surface-container-low px-3">
             <input
               readOnly
-              value={transfer.shareUrl}
+              value={transfer.share_url}
               className="min-w-0 flex-1 truncate bg-transparent text-xs text-on-surface-variant outline-none"
             />
             <button
@@ -106,7 +115,13 @@ export function TransferCard({ transfer }: TransferCardProps) {
                 Details
               </Button>
             </Link>
-            <Button variant="ghost" fullWidth className="text-error text-xs sm:text-sm">
+            <Button
+              variant="ghost"
+              fullWidth
+              className="text-error text-xs sm:text-sm"
+              disabled
+              title="Delete comes next"
+            >
               <Icon name="delete" />
               Delete
             </Button>

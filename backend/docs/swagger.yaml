@@ -80,6 +80,31 @@ definitions:
     required:
     - email
     type: object
+  file-temp-share_backend_internal_dto.PublicTransferResponse:
+    properties:
+      expires_at:
+        type: string
+      file_count:
+        type: integer
+      files:
+        items:
+          $ref: '#/definitions/file-temp-share_backend_internal_dto.FileResponse'
+        type: array
+      has_password:
+        type: boolean
+      message:
+        type: string
+      sender_email:
+        type: string
+      short_code:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      total_size_bytes:
+        type: integer
+    type: object
   file-temp-share_backend_internal_dto.RegisterRequest:
     properties:
       email:
@@ -91,6 +116,70 @@ definitions:
     required:
     - email
     - password
+    type: object
+  file-temp-share_backend_internal_dto.TransferDetailResponse:
+    properties:
+      created_at:
+        type: string
+      download_count:
+        type: integer
+      expires_at:
+        type: string
+      file_count:
+        type: integer
+      files:
+        items:
+          $ref: '#/definitions/file-temp-share_backend_internal_dto.FileResponse'
+        type: array
+      has_password:
+        type: boolean
+      id:
+        type: string
+      message:
+        type: string
+      recipient_count:
+        type: integer
+      share_url:
+        type: string
+      short_code:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      total_size_bytes:
+        type: integer
+    type: object
+  file-temp-share_backend_internal_dto.TransferListItem:
+    properties:
+      created_at:
+        type: string
+      download_count:
+        type: integer
+      expires_at:
+        type: string
+      file_count:
+        type: integer
+      first_file_name:
+        type: string
+      has_password:
+        type: boolean
+      id:
+        type: string
+      message:
+        type: string
+      recipient_count:
+        type: integer
+      share_url:
+        type: string
+      short_code:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      total_size_bytes:
+        type: integer
     type: object
   file-temp-share_backend_internal_dto.TransferResponse:
     properties:
@@ -286,7 +375,65 @@ paths:
       summary: Register user
       tags:
       - auth
+  /api/v1/public/transfers/{shortCode}:
+    get:
+      parameters:
+      - description: short code
+        in: path
+        name: shortCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_dto.PublicTransferResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+      summary: Public transfer by short code
+      tags:
+      - public
   /api/v1/transfers:
+    get:
+      parameters:
+      - description: active|expired|all
+        enum:
+        - active
+        - expired
+        - all
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/file-temp-share_backend_internal_dto.TransferListItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+      security:
+      - BearerAuth: []
+      summary: List own transfers
+      tags:
+      - transfers
     post:
       consumes:
       - application/json
@@ -315,6 +462,38 @@ paths:
       security:
       - BearerAuth: []
       summary: Create transfer
+      tags:
+      - transfers
+  /api/v1/transfers/{id}:
+    get:
+      parameters:
+      - description: transfer id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_dto.TransferDetailResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody'
+      security:
+      - BearerAuth: []
+      summary: Get own transfer detail
       tags:
       - transfers
   /api/v1/transfers/{id}/files:

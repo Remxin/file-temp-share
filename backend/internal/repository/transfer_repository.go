@@ -63,6 +63,59 @@ func (r *TransferRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.
 	return mapTransfer(row), nil
 }
 
+func (r *TransferRepository) GetByShortCode(ctx context.Context, shortCode string) (domain.Transfer, error) {
+	row, err := r.q.GetTransferByShortCode(ctx, shortCode)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Transfer{}, domain.ErrNotFound
+		}
+		return domain.Transfer{}, fmt.Errorf("get transfer by short code: %w", err)
+	}
+	return mapTransfer(row), nil
+}
+
+func (r *TransferRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.TransferListItem, error) {
+	rows, err := r.q.ListTransfersWithStatsByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list transfers: %w", err)
+	}
+	out := make([]domain.TransferListItem, 0, len(rows))
+	for _, row := range rows {
+		item := domain.TransferListItem{
+			Transfer:       mapTransferFromListRow(row),
+			FileCount:      row.FileCount,
+			TotalSizeBytes: row.TotalSizeBytes,
+			RecipientCount: row.RecipientCount,
+		}
+		if row.FirstFileName != "" {
+			name := row.FirstFileName
+			item.FirstFileName = &name
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *TransferRepository) ListFiles(ctx context.Context, transferID uuid.UUID) ([]domain.File, error) {
+	rows, err := r.q.ListFilesByTransferID(ctx, transferID)
+	if err != nil {
+		return nil, fmt.Errorf("list files: %w", err)
+	}
+	out := make([]domain.File, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mapFile(row))
+	}
+	return out, nil
+}
+
+func (r *TransferRepository) CountRecipients(ctx context.Context, transferID uuid.UUID) (int64, error) {
+	n, err := r.q.CountRecipientsByTransferID(ctx, transferID)
+	if err != nil {
+		return 0, fmt.Errorf("count recipients: %w", err)
+	}
+	return n, nil
+}
+
 func (r *TransferRepository) AddRecipient(ctx context.Context, transferID uuid.UUID, email string) error {
 	_, err := r.q.CreateTransferRecipient(ctx, sqlc.CreateTransferRecipientParams{
 		TransferID: transferID,
@@ -94,6 +147,26 @@ func (r *TransferRepository) CreateFile(ctx context.Context, transferID uuid.UUI
 		return domain.File{}, fmt.Errorf("create file: %w", err)
 	}
 	return mapFile(row), nil
+}
+
+func mapTransferFromListRow(row sqlc.ListTransfersWithStatsByUserIDRow) domain.Transfer {
+	t := domain.Transfer{
+		ID:            row.ID,
+		UserID:        row.UserID,
+		ShortCode:     row.ShortCode,
+		Title:         textToPtr(row.Title),
+		Message:       textToPtr(row.Message),
+		PasswordHash:  textToPtr(row.PasswordHash),
+		Status:        row.Status,
+		ExpiresAt:     row.ExpiresAt,
+		DownloadCount: row.DownloadCount,
+		CreatedAt:     row.CreatedAt,
+	}
+	if row.MaxDownloads.Valid {
+		v := row.MaxDownloads.Int32
+		t.MaxDownloads = &v
+	}
+	return t
 }
 
 func mapTransfer(row sqlc.Transfer) domain.Transfer {

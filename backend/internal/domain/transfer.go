@@ -37,6 +37,14 @@ type File struct {
 	CreatedAt    time.Time
 }
 
+type TransferListItem struct {
+	Transfer
+	FileCount      int64
+	TotalSizeBytes int64
+	RecipientCount int64
+	FirstFileName  *string
+}
+
 func (t Transfer) IsExpired(now time.Time) bool {
 	if t.Status == TransferStatusExpired {
 		return true
@@ -50,4 +58,18 @@ func (t Transfer) IsBlocked() bool {
 
 func (t Transfer) IsDeleted() bool {
 	return t.Status == TransferStatusDeleted
+}
+
+// EffectiveStatus returns the status clients should see (expiry overrides active).
+func (t Transfer) EffectiveStatus(now time.Time) string {
+	if t.IsDeleted() {
+		return TransferStatusDeleted
+	}
+	if t.IsBlocked() {
+		return TransferStatusBlocked
+	}
+	if t.IsExpired(now) {
+		return TransferStatusExpired
+	}
+	return TransferStatusActive
 }

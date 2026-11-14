@@ -20,13 +20,14 @@ import (
 )
 
 const (
-	shortCodeLen     = 10
+	shortCodeLen      = 10
 	shortCodeAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	createRetries    = 5
+	createRetries     = 5
 )
 
 type TransferService struct {
 	transfers      *repository.TransferRepository
+	users          *repository.UserRepository
 	blobs          storage.Storage
 	appPublicURL   string
 	uploadMaxBytes int64
@@ -34,12 +35,14 @@ type TransferService struct {
 
 func NewTransferService(
 	transfers *repository.TransferRepository,
+	users *repository.UserRepository,
 	blobs storage.Storage,
 	appPublicURL string,
 	uploadMaxBytes int64,
 ) *TransferService {
 	return &TransferService{
 		transfers:      transfers,
+		users:          users,
 		blobs:          blobs,
 		appPublicURL:   strings.TrimRight(appPublicURL, "/"),
 		uploadMaxBytes: uploadMaxBytes,
@@ -52,6 +55,22 @@ type CreateTransferInput struct {
 	Password       *string
 	ExpiresInHours int
 	Recipients     []string
+}
+
+type TransferDetail struct {
+	Transfer       domain.Transfer
+	Files          []domain.File
+	FileCount      int64
+	TotalSizeBytes int64
+	RecipientCount int64
+}
+
+type PublicTransfer struct {
+	Transfer       domain.Transfer
+	Files          []domain.File
+	FileCount      int64
+	TotalSizeBytes int64
+	SenderEmail    string
 }
 
 func (s *TransferService) Create(ctx context.Context, userID uuid.UUID, in CreateTransferInput) (domain.Transfer, error) {
@@ -162,6 +181,105 @@ func (s *TransferService) UploadFile(ctx context.Context, in UploadFileInput) (d
 		return domain.File{}, err
 	}
 	return file, nil
+}
+
+func (s *TransferService) List(ctx context.Context, userID uuid.UUID, filter string) ([]domain.TransferListItem, error) {
+	items, err := s.transfers.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	out := make([]domain.TransferListItem, 0, len(items))
+	for _, item := range items {
+		status := item.EffectiveStatus(now)
+		item.Status = status
+		switch filter {
+		case "active":
+			if status != domain.TransferStatusActive {
+				continue
+			}
+		case "expired":
+			if status != domain.TransferStatusExpired {
+				continue
+			}
+		case "all", "":
+			// keep
+		default:
+			return nil, fmt.Errorf("%w: invalid status filter", domain.ErrValidation)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (s *TransferService) GetOwned(ctx context.Context, userID, transferID uuid.UUID) (TransferDetail, error) {
+	transfer, err := s.transfers.GetByID(ctx, transferID)
+	if err != nil {
+		return TransferDetail{}, err
+	}
+	if transfer.IsDeleted() {
+		return TransferDetail{}, domain.ErrNotFound
+	}
+	if transfer.UserID != userID {
+		return TransferDetail{}, domain.ErrForbidden
+	}
+	transfer.Status = transfer.EffectiveStatus(time.Now().UTC())
+
+	files, err := s.transfers.ListFiles(ctx, transfer.ID)
+	if err != nil {
+		return TransferDetail{}, err
+	}
+	var total int64
+	for _, f := range files {
+		total += f.SizeBytes
+	}
+	recipients, err := s.transfers.CountRecipients(ctx, transfer.ID)
+	if err != nil {
+		return TransferDetail{}, err
+	}
+	return TransferDetail{
+		Transfer:       transfer,
+		Files:          files,
+		FileCount:      int64(len(files)),
+		TotalSizeBytes: total,
+		RecipientCount: recipients,
+	}, nil
+}
+
+func (s *TransferService) GetPublic(ctx context.Context, shortCode string) (PublicTransfer, error) {
+	transfer, err := s.transfers.GetByShortCode(ctx, shortCode)
+	if err != nil {
+		return PublicTransfer{}, err
+	}
+	if transfer.IsDeleted() {
+		return PublicTransfer{}, domain.ErrNotFound
+	}
+	if transfer.IsBlocked() {
+		return PublicTransfer{}, domain.ErrTransferBlocked
+	}
+	transfer.Status = transfer.EffectiveStatus(time.Now().UTC())
+
+	files, err := s.transfers.ListFiles(ctx, transfer.ID)
+	if err != nil {
+		return PublicTransfer{}, err
+	}
+	var total int64
+	for _, f := range files {
+		total += f.SizeBytes
+	}
+
+	senderEmail := ""
+	if user, userErr := s.users.GetByID(ctx, transfer.UserID); userErr == nil {
+		senderEmail = user.Email
+	}
+
+	return PublicTransfer{
+		Transfer:       transfer,
+		Files:          files,
+		FileCount:      int64(len(files)),
+		TotalSizeBytes: total,
+		SenderEmail:    senderEmail,
+	}, nil
 }
 
 func (s *TransferService) ShareURL(t domain.Transfer) string {

@@ -9,6 +9,12 @@ import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { useGetTransferQuery } from "@/features/transfers/transfersApi";
 import { cn } from "@/lib/cn";
+import {
+  displayTitle,
+  formatBytes,
+  formatDateTime,
+  formatExpiresAt,
+} from "@/lib/format";
 
 export function TransferDetailView({ id }: { id: string }) {
   const { data, isLoading, isError } = useGetTransferQuery(id);
@@ -36,7 +42,7 @@ export function TransferDetailView({ id }: { id: string }) {
   const expired = data.status === "expired";
 
   async function copyLink() {
-    await navigator.clipboard.writeText(data!.shareUrl);
+    await navigator.clipboard.writeText(data!.share_url);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -55,7 +61,9 @@ export function TransferDetailView({ id }: { id: string }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-bold">{data.title}</h1>
+              <h1 className="truncate text-2xl font-bold">
+                {displayTitle(data.title)}
+              </h1>
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -68,10 +76,12 @@ export function TransferDetailView({ id }: { id: string }) {
               </span>
             </div>
             <p className="text-sm text-on-surface-variant">
-              {data.totalSizeLabel} • {data.uploadedAtLabel}
+              {formatBytes(data.total_size_bytes)} • Uploaded{" "}
+              {formatDateTime(data.created_at)}
             </p>
             <p className="text-sm text-on-surface-variant">
-              {data.expiresAtLabel} • {data.downloadCount} downloads
+              {formatExpiresAt(data.expires_at)} • {data.download_count}{" "}
+              downloads
             </p>
           </div>
         </div>
@@ -82,7 +92,7 @@ export function TransferDetailView({ id }: { id: string }) {
             <div className="flex min-h-11 min-w-0 flex-1 items-center rounded-xl bg-surface-container-low px-3">
               <input
                 readOnly
-                value={data.shareUrl}
+                value={data.share_url}
                 className="w-full truncate bg-transparent text-sm outline-none"
               />
             </div>
@@ -102,27 +112,38 @@ export function TransferDetailView({ id }: { id: string }) {
 
         <div className="space-y-2">
           <h2 className="text-sm font-semibold">Files</h2>
-          {data.files.map((f) => (
-            <div
-              key={f.id}
-              className="flex flex-col gap-2 rounded-xl bg-surface-container-low p-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <Icon name="picture_as_pdf" />
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{f.name}</p>
-                  <p className="text-xs text-on-surface-variant">{f.sizeLabel}</p>
+          {data.files.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No files uploaded.</p>
+          ) : (
+            data.files.map((f) => (
+              <div
+                key={f.id}
+                className="flex flex-col gap-2 rounded-xl bg-surface-container-low p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Icon name="description" />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{f.original_name}</p>
+                    <p className="text-xs text-on-surface-variant">
+                      {formatBytes(f.size_bytes)}
+                    </p>
+                  </div>
                 </div>
+                <Button variant="secondary" disabled title="Download comes next">
+                  <Icon name="download" />
+                  Download
+                </Button>
               </div>
-              <Button variant="secondary" disabled={expired}>
-                <Icon name="download" />
-                Download
-              </Button>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
-        <Button variant="danger" className="w-full sm:w-auto">
+        <Button
+          variant="danger"
+          className="w-full sm:w-auto"
+          disabled
+          title="Delete comes next"
+        >
           <Icon name="delete" />
           Delete transfer
         </Button>

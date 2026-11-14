@@ -220,7 +220,97 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/public/transfers/{shortCode}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Public transfer by short code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "short code",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_dto.PublicTransferResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/transfers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transfers"
+                ],
+                "summary": "List own transfers",
+                "parameters": [
+                    {
+                        "enum": [
+                            "active",
+                            "expired",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "active|expired|all",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/file-temp-share_backend_internal_dto.TransferListItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -263,6 +353,57 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transfers/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transfers"
+                ],
+                "summary": "Get own transfer detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "transfer id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_dto.TransferDetailResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/file-temp-share_backend_internal_platform_httpx.ErrorBody"
                         }
@@ -492,6 +633,44 @@ const docTemplate = `{
                 }
             }
         },
+        "file-temp-share_backend_internal_dto.PublicTransferResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "file_count": {
+                    "type": "integer"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/file-temp-share_backend_internal_dto.FileResponse"
+                    }
+                },
+                "has_password": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "sender_email": {
+                    "type": "string"
+                },
+                "short_code": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
         "file-temp-share_backend_internal_dto.RegisterRequest": {
             "type": "object",
             "required": [
@@ -506,6 +685,103 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 72,
                     "minLength": 8
+                }
+            }
+        },
+        "file-temp-share_backend_internal_dto.TransferDetailResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "download_count": {
+                    "type": "integer"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "file_count": {
+                    "type": "integer"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/file-temp-share_backend_internal_dto.FileResponse"
+                    }
+                },
+                "has_password": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "recipient_count": {
+                    "type": "integer"
+                },
+                "share_url": {
+                    "type": "string"
+                },
+                "short_code": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "file-temp-share_backend_internal_dto.TransferListItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "download_count": {
+                    "type": "integer"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "file_count": {
+                    "type": "integer"
+                },
+                "first_file_name": {
+                    "type": "string"
+                },
+                "has_password": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "recipient_count": {
+                    "type": "integer"
+                },
+                "share_url": {
+                    "type": "string"
+                },
+                "short_code": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_size_bytes": {
+                    "type": "integer"
                 }
             }
         },

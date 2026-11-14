@@ -41,9 +41,13 @@ func New(deps Dependencies) *gin.Engine {
 		transfers := v1.Group("/transfers")
 		transfers.Use(middleware.AuthRequired(deps.TokenManager))
 		{
+			transfers.GET("", deps.TransferHandler.List)
 			transfers.POST("", deps.TransferHandler.Create)
+			transfers.GET("/:id", deps.TransferHandler.Get)
 			transfers.POST("/:id/files", deps.TransferHandler.UploadFile)
 		}
+
+		v1.GET("/public/transfers/:shortCode", deps.TransferHandler.GetPublic)
 	}
 
 	return r

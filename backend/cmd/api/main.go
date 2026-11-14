@@ -90,7 +90,7 @@ func main() {
 	transferRepo := repository.NewTransferRepository(pool)
 
 	authService := service.NewAuthService(userRepo, resetRepo, tokenManager, publisher, cfg.AppPublicURL)
-	transferService := service.NewTransferService(transferRepo, blobs, cfg.AppPublicURL, cfg.UploadMaxBytes)
+	transferService := service.NewTransferService(transferRepo, userRepo, blobs, cfg.AppPublicURL, cfg.UploadMaxBytes)
 
 	authHandler := handler.NewAuthHandler(authService)
 	transferHandler := handler.NewTransferHandler(transferService, cfg.UploadMaxBytes)

@@ -29,7 +29,7 @@ export function TransfersDashboard() {
     const list = data ?? [];
     const q = query.trim().toLowerCase();
     if (!q) return list;
-    return list.filter((t) => t.title.toLowerCase().includes(q));
+    return list.filter((t) => (t.title ?? "").toLowerCase().includes(q));
   }, [data, query]);
 
   return (

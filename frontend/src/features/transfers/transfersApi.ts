@@ -1,58 +1,71 @@
 import { baseApi } from "@/store/api/baseApi";
 import type {
+  CreateTransferRequest,
   PublicTransfer,
+  Transfer,
   TransferDetail,
-  TransferSummary,
+  TransferFile,
+  TransferFilter,
+  TransferListItem,
 } from "@/lib/types/transfer";
-import {
-  mockPublicTransfers,
-  mockTransferDetails,
-  mockTransfers,
-} from "@/features/transfers/mockData";
 
-export type TransferFilter = "active" | "expired" | "all";
+export type { TransferFilter };
 
 export const transfersApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listTransfers: build.query<TransferSummary[], TransferFilter>({
-      async queryFn(filter) {
-        await delay(200);
-        const items =
-          filter === "all"
-            ? mockTransfers
-            : mockTransfers.filter((t) => t.status === filter);
-        return { data: items };
-      },
-      providesTags: ["Transfers"],
+    listTransfers: build.query<TransferListItem[], TransferFilter>({
+      query: (status) => ({
+        url: "/api/v1/transfers",
+        params: { status },
+      }),
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ id }) => ({ type: "Transfer" as const, id })),
+              { type: "Transfers", id: "LIST" },
+            ]
+          : [{ type: "Transfers", id: "LIST" }],
     }),
     getTransfer: build.query<TransferDetail, string>({
-      async queryFn(id) {
-        await delay(150);
-        const item = mockTransferDetails[id];
-        if (!item) return { error: { status: 404, data: "not found" } };
-        return { data: item };
-      },
+      query: (id) => `/api/v1/transfers/${id}`,
       providesTags: (_r, _e, id) => [{ type: "Transfer", id }],
     }),
     getPublicTransfer: build.query<PublicTransfer, string>({
-      async queryFn(slug) {
-        await delay(150);
-        const item = mockPublicTransfers[slug] ?? mockPublicTransfers["brand-2025"];
-        if (slug === "missing") {
-          return { error: { status: 404, data: "not found" } };
-        }
-        return { data: item };
+      query: (shortCode) => `/api/v1/public/transfers/${shortCode}`,
+    }),
+    createTransfer: build.mutation<Transfer, CreateTransferRequest>({
+      query: (body) => ({
+        url: "/api/v1/transfers",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [{ type: "Transfers", id: "LIST" }],
+    }),
+    uploadTransferFile: build.mutation<
+      TransferFile,
+      { transferId: string; file: File }
+    >({
+      query: ({ transferId, file }) => {
+        const body = new FormData();
+        body.append("file", file);
+        return {
+          url: `/api/v1/transfers/${transferId}/files`,
+          method: "POST",
+          body,
+        };
       },
+      invalidatesTags: (_r, _e, arg) => [
+        { type: "Transfer", id: arg.transferId },
+        { type: "Transfers", id: "LIST" },
+      ],
     }),
   }),
 });
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export const {
   useListTransfersQuery,
   useGetTransferQuery,
   useGetPublicTransferQuery,
+  useCreateTransferMutation,
+  useUploadTransferFileMutation,
 } = transfersApi;

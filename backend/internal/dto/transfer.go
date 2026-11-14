@@ -29,6 +29,35 @@ type TransferResponse struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type TransferListItem struct {
+	TransferResponse
+	FileCount      int64   `json:"file_count"`
+	TotalSizeBytes int64   `json:"total_size_bytes"`
+	RecipientCount int64   `json:"recipient_count"`
+	FirstFileName  *string `json:"first_file_name,omitempty"`
+}
+
+type TransferDetailResponse struct {
+	TransferResponse
+	Files          []FileResponse `json:"files"`
+	FileCount      int64          `json:"file_count"`
+	TotalSizeBytes int64          `json:"total_size_bytes"`
+	RecipientCount int64          `json:"recipient_count"`
+}
+
+type PublicTransferResponse struct {
+	ShortCode      string         `json:"short_code"`
+	Title          *string        `json:"title,omitempty"`
+	Message        *string        `json:"message,omitempty"`
+	Status         string         `json:"status"`
+	ExpiresAt      time.Time      `json:"expires_at"`
+	HasPassword    bool           `json:"has_password"`
+	SenderEmail    string         `json:"sender_email"`
+	Files          []FileResponse `json:"files"`
+	FileCount      int64          `json:"file_count"`
+	TotalSizeBytes int64          `json:"total_size_bytes"`
+}
+
 type FileResponse struct {
 	ID           uuid.UUID `json:"id"`
 	OriginalName string    `json:"original_name"`
@@ -60,4 +89,12 @@ func NewFileResponse(f domain.File) FileResponse {
 		SizeBytes:    f.SizeBytes,
 		CreatedAt:    f.CreatedAt,
 	}
+}
+
+func NewFileResponses(files []domain.File) []FileResponse {
+	out := make([]FileResponse, 0, len(files))
+	for _, f := range files {
+		out = append(out, NewFileResponse(f))
+	}
+	return out
 }
