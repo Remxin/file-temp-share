@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -19,6 +21,13 @@ type Config struct {
 	AppPublicURL     string
 	GmailAppLogin    string
 	GmailAppPassword string
+
+	MinIOEndpoint  string
+	MinIOAccessKey string
+	MinIOSecretKey string
+	MinIOBucket    string
+	MinIOUseSSL    bool
+	UploadMaxBytes int64
 }
 
 // Load reads optional .env / .env.local files then environment variables.
@@ -34,6 +43,11 @@ func Load() (Config, error) {
 		AppPublicURL:     stringsTrimRightSlash(getEnv("APP_PUBLIC_URL", "http://localhost:3000")),
 		GmailAppLogin:    os.Getenv("GMAIL_APP_LOGIN"),
 		GmailAppPassword: os.Getenv("GMAIL_APP_PASSWORD"),
+		MinIOEndpoint:    getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:   getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinIOSecretKey:   getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinIOBucket:      getEnv("MINIO_BUCKET", "transfers"),
+		MinIOUseSSL:      parseBool(getEnv("MINIO_USE_SSL", "false")),
 	}
 
 	ttlRaw := getEnv("JWT_TTL", "24h")
@@ -46,6 +60,12 @@ func Load() (Config, error) {
 	}
 	cfg.JWTTTL = ttl
 
+	maxBytes, err := strconv.ParseInt(getEnv("UPLOAD_MAX_BYTES", "536870912"), 10, 64)
+	if err != nil || maxBytes <= 0 {
+		return Config{}, fmt.Errorf("UPLOAD_MAX_BYTES must be a positive integer")
+	}
+	cfg.UploadMaxBytes = maxBytes
+
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
@@ -54,6 +74,15 @@ func Load() (Config, error) {
 	}
 	if cfg.AppPublicURL == "" {
 		return Config{}, fmt.Errorf("APP_PUBLIC_URL is required")
+	}
+	if cfg.MinIOEndpoint == "" {
+		return Config{}, fmt.Errorf("MINIO_ENDPOINT is required")
+	}
+	if cfg.MinIOAccessKey == "" || cfg.MinIOSecretKey == "" {
+		return Config{}, fmt.Errorf("MINIO_ACCESS_KEY and MINIO_SECRET_KEY are required")
+	}
+	if cfg.MinIOBucket == "" {
+		return Config{}, fmt.Errorf("MINIO_BUCKET is required")
 	}
 	return cfg, nil
 }
@@ -106,6 +135,15 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseBool(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func stringsTrimRightSlash(s string) string {

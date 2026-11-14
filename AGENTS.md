@@ -20,8 +20,9 @@ Temporary file-sharing app (WeTransfer-like): create a **transfer**, attach **fi
 | REST CRUD, sqlc queries | Not started |
 | Next.js frontend (App Router + auth/transfers UI) | In progress |
 | JWT auth (single token: register/login/me/password-reset) | Done (reset enqueues email job) |
-| Local disk storage | Planned next for binaries |
-| MinIO (S3) | Planned later — compose stub commented |
+| Local disk storage | Superseded by MinIO for blobs |
+| MinIO (S3) | Done — Compose `minio` + `minio-init` (bucket); API proxy upload via `storage.Storage` |
+| Transfer create + file upload API | Done — `POST /api/v1/transfers`, `POST /api/v1/transfers/:id/files` (multipart) |
 | RabbitMQ + worker | Done — Compose service `worker` (`Dockerfile.worker`); password-reset mail via Gmail SMTP |
 | Gmail mailer (SMTP app password) | Done — `internal/mailer`; secrets in `.env` / `.env.local` only |
 
@@ -130,8 +131,8 @@ Core relationships: `users` 1—N `transfers` 1—N `files`; `transfers` 1—N `
 
 ## Storage
 
-- **Now / next:** local filesystem under `UPLOAD_DIR` (Compose volume later).
-- **Later:** MinIO via the same `storage.Storage` interface (put/get/delete by key).
+- **Now:** MinIO via `storage.Storage` (put/get/delete by key). Compose: S3 `:9000`, console `:9001`.
+- Uploads go **proxy through the API** (`multipart/form-data`); browser never talks to MinIO.
 - Keep blob I/O out of handlers; go through `internal/storage`.
 
 ## Auth
@@ -166,7 +167,7 @@ Current topology (declared idempotently by publisher/consumer):
 - Worker image: `backend/Dockerfile.worker` (Compose service `worker`). Local alternative: `task worker:run`.
 - Compose injects `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` from project `.env` (not `.env.local` — put secrets in `.env` for Docker).
 - Env: `RABBITMQ_URL`, `APP_PUBLIC_URL` (reset link base, API), `GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`.
-- MinIO remains **commented** in `docker-compose.yml`.
+- MinIO/Silo: Compose `minio` + one-shot `minio-init` (`mc mb` bucket). No MinIO YAML — credentials/bucket from `.env` / Compose env. API does **not** create buckets on boot (same rule as migrations). Console: `http://localhost:9001`.
 - **Gmail:** SMTP via Google account **app password** (`smtp.gmail.com:587`). Not OAuth client flow.
 - Other email types (transfer recipients, etc.) are not wired yet.
 
@@ -196,6 +197,7 @@ Useful tasks:
 | `task infra:up` | Build & start Postgres + RabbitMQ + API + worker + frontend |
 | `task infra:up:db` | Start only Postgres (hybrid local dev) |
 | `task infra:up:mq` | Start only RabbitMQ (AMQP :5672, management :15672) |
+| `task infra:up:minio` | Start MinIO + create `transfers` bucket (S3 :9000, console :9001) |
 | `task infra:down` | Stop Compose |
 | `task tools:install` | Install `./bin/migrate` (postgres-only golang-migrate) |
 | `task db:migrate:up` | Apply migrations |
@@ -305,7 +307,7 @@ Seed users use non-deliverable `@filetemp.local` addresses so password-reset (an
 - Makefile (use Taskfile).
 - Hand-written `flake.nix` (use Devbox).
 - Reading or committing secrets (`.env`, `.env.local`, Gmail credentials).
-- Implementing MinIO or expanding RabbitMQ (reconnect/DLQ) unless the task explicitly says so.
+- Expanding RabbitMQ (reconnect/DLQ) or switching to presigned/direct browser→MinIO uploads unless the task explicitly says so.
 - Mixing DTO and DB models in public API responses.
 - Putting business rules in handlers or SQL-only “logic” that belongs in services.
 - Adding Mailhog — production mail path is Gmail SMTP via the owner’s account.

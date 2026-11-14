@@ -39,6 +39,11 @@ tasks:
     cmds:
       - docker compose up -d rabbitmq
 
+  infra:up:minio:
+    desc: Start MinIO + create transfers bucket (S3 :9000, console :9001)
+    cmds:
+      - docker compose up -d minio minio-init
+
   infra:down:
     desc: Stop Compose services
     cmds:

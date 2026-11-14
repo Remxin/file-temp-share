@@ -29,17 +29,22 @@ services:
       SWAGGER_HOST: ${SWAGGER_HOST:-localhost:8080}
       JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
       JWT_TTL: ${JWT_TTL:-24h}
-      UPLOAD_DIR: /data/uploads
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-transfers}
+      MINIO_USE_SSL: "false"
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-536870912}
     ports:
       - "${API_PORT:-8080}:8080"
-    volumes:
-      - upload_data:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
@@ -65,19 +70,45 @@ services:
       api:
         condition: service_healthy
 
-  # --- Planned: MinIO (S3-compatible object storage) ---
-  # minio:
-  #   image: minio/minio:latest
-  #   container_name: filetemp-minio
-  #   command: server /data --console-address ":9001"
-  #   environment:
-  #     MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-  #     MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-  #   ports:
-  #     - "9000:9000"
-  #     - "9001:9001"
-  #   volumes:
-  #     - minio_data:/data
+  # Official minio/minio images were removed from Docker Hub (source-only).
+  # pgsty/silo is an S3-compatible MinIO community fork (includes mc).
+  minio:
+    image: pgsty/silo:latest
+    container_name: filetemp-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio-init:
+    image: pgsty/silo:latest
+    container_name: filetemp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-transfers}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing "local/$$MINIO_BUCKET" &&
+        echo bucket ready
+    restart: "no"
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -111,6 +142,5 @@ services:
 
 volumes:
   postgres_data:
-  upload_data:
   rabbitmq_data:
-  # minio_data:
+  minio_data:

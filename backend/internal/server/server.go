@@ -13,13 +13,15 @@ import (
 )
 
 type Dependencies struct {
-	AuthHandler  *handler.AuthHandler
-	TokenManager *auth.TokenManager
+	AuthHandler     *handler.AuthHandler
+	TransferHandler *handler.TransferHandler
+	TokenManager    *auth.TokenManager
 }
 
 // New builds the Gin engine with health, swagger and API routes.
 func New(deps Dependencies) *gin.Engine {
 	r := gin.New()
+	r.MaxMultipartMemory = 32 << 20 // 32 MiB; larger parts spill to temp disk
 	r.Use(gin.Logger(), gin.Recovery(), corsMiddleware())
 
 	r.GET("/health", health)
@@ -34,6 +36,13 @@ func New(deps Dependencies) *gin.Engine {
 			authGroup.POST("/password-reset", deps.AuthHandler.RequestPasswordReset)
 			authGroup.POST("/password-reset/confirm", deps.AuthHandler.ConfirmPasswordReset)
 			authGroup.GET("/me", middleware.AuthRequired(deps.TokenManager), deps.AuthHandler.Me)
+		}
+
+		transfers := v1.Group("/transfers")
+		transfers.Use(middleware.AuthRequired(deps.TokenManager))
+		{
+			transfers.POST("", deps.TransferHandler.Create)
+			transfers.POST("/:id/files", deps.TransferHandler.UploadFile)
 		}
 	}
 

@@ -13,4 +13,6 @@ var (
 	ErrInvalidResetToken   = errors.New("invalid or expired reset token")
 	ErrTransferExpired     = errors.New("transfer expired")
 	ErrTransferBlocked     = errors.New("transfer blocked")
+	ErrFileTooLarge        = errors.New("file too large")
+	ErrEmptyFile           = errors.New("empty file")
 )

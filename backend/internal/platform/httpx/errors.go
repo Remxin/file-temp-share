@@ -39,6 +39,10 @@ func Abort(c *gin.Context, err error) {
 		c.AbortWithStatusJSON(http.StatusGone, ErrorBody{Error: "transfer expired"})
 	case errors.Is(err, domain.ErrTransferBlocked):
 		c.AbortWithStatusJSON(http.StatusForbidden, ErrorBody{Error: "transfer blocked"})
+	case errors.Is(err, domain.ErrFileTooLarge):
+		c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, ErrorBody{Error: "file too large"})
+	case errors.Is(err, domain.ErrEmptyFile):
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorBody{Error: "empty file"})
 	default:
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
