@@ -136,10 +136,20 @@ tasks:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test ./internal/domain/ ./internal/service/ ./internal/mailer/"'
 
   test:int:
-    desc: Run API integration tests (requires Postgres + migrations)
+    desc: Run API integration tests (Python; requires API + Postgres)
     deps: [infra:up:db, db:migrate:up]
     cmds:
-      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test -tags=integration ./internal/server/ -count=1"'
+      - docker compose up -d --build api
+      - |
+        {{.N}} sh -c '
+          set -e
+          python -m venv .venv-int
+          . .venv-int/bin/activate
+          pip install -q -r tests/api/requirements.txt
+          export API_BASE_URL="${API_BASE_URL:-http://localhost:8080}"
+          export DATABASE_URL="${DATABASE_URL:-postgres://filetemp:filetemp@localhost:5432/filetemp?sslmode=disable}"
+          pytest tests/api -q
+        '
 
   devbox:check:
     desc: Verify Devbox toolbox tool versions
