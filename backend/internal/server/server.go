@@ -15,6 +15,7 @@ import (
 type Dependencies struct {
 	AuthHandler     *handler.AuthHandler
 	TransferHandler *handler.TransferHandler
+	AdminHandler    *handler.AdminHandler
 	TokenManager    *auth.TokenManager
 }
 
@@ -53,6 +54,15 @@ func New(deps Dependencies) *gin.Engine {
 			publicTransfers.GET("/:shortCode", deps.TransferHandler.GetPublic)
 			publicTransfers.POST("/:shortCode/unlock", deps.TransferHandler.UnlockPublic)
 			publicTransfers.GET("/:shortCode/files/:fileId", deps.TransferHandler.DownloadPublicFile)
+		}
+
+		admin := v1.Group("/admin")
+		admin.Use(middleware.AuthRequired(deps.TokenManager), middleware.AdminRequired())
+		{
+			admin.GET("/users", deps.AdminHandler.ListUsers)
+			admin.PATCH("/users/:id", deps.AdminHandler.SetUserActive)
+			admin.GET("/transfers", deps.AdminHandler.ListTransfers)
+			admin.PATCH("/transfers/:id", deps.AdminHandler.SetTransferStatus)
 		}
 	}
 

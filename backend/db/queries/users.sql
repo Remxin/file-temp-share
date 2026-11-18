@@ -17,3 +17,20 @@ LIMIT 1;
 UPDATE users
 SET password_hash = $2
 WHERE id = $1;
+
+-- name: ListUsers :many
+SELECT *
+FROM users
+ORDER BY created_at DESC;
+
+-- name: SetUserActive :one
+UPDATE users
+SET is_active = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: CountActiveAdmins :one
+SELECT COUNT(*)::bigint AS count
+FROM users
+WHERE role = 'ADMIN'
+  AND is_active = TRUE;

@@ -46,6 +46,38 @@ WHERE t.user_id = $1
   AND t.status <> 'deleted'
 ORDER BY t.created_at DESC;
 
+-- name: ListAllTransfersWithStats :many
+SELECT
+    t.id,
+    t.user_id,
+    t.short_code,
+    t.title,
+    t.message,
+    t.password_hash,
+    t.status,
+    t.expires_at,
+    t.max_downloads,
+    t.download_count,
+    t.created_at,
+    u.email AS owner_email,
+    (SELECT COUNT(*) FROM files f WHERE f.transfer_id = t.id)::bigint AS file_count,
+    (SELECT COALESCE(SUM(f.size_bytes), 0) FROM files f WHERE f.transfer_id = t.id)::bigint AS total_size_bytes,
+    (SELECT COUNT(*) FROM transfer_recipients tr WHERE tr.transfer_id = t.id)::bigint AS recipient_count,
+    COALESCE(
+        (SELECT f.original_name FROM files f WHERE f.transfer_id = t.id ORDER BY f.created_at ASC LIMIT 1),
+        ''
+    )::text AS first_file_name
+FROM transfers t
+INNER JOIN users u ON u.id = t.user_id
+WHERE t.status <> 'deleted'
+ORDER BY t.created_at DESC;
+
+-- name: UpdateTransferStatus :one
+UPDATE transfers
+SET status = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: CountRecipientsByTransferID :one
 SELECT COUNT(*)::bigint AS count
 FROM transfer_recipients

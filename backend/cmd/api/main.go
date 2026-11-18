@@ -91,13 +91,16 @@ func main() {
 
 	authService := service.NewAuthService(userRepo, resetRepo, tokenManager, publisher, cfg.AppPublicURL)
 	transferService := service.NewTransferService(transferRepo, userRepo, blobs, publisher, cfg.AppPublicURL, cfg.UploadMaxBytes)
+	adminService := service.NewAdminService(userRepo, transferRepo, cfg.AppPublicURL)
 
 	authHandler := handler.NewAuthHandler(authService)
 	transferHandler := handler.NewTransferHandler(transferService, cfg.UploadMaxBytes)
+	adminHandler := handler.NewAdminHandler(adminService)
 
 	engine := server.New(server.Dependencies{
 		AuthHandler:     authHandler,
 		TransferHandler: transferHandler,
+		AdminHandler:    adminHandler,
 		TokenManager:    tokenManager,
 	})
 
