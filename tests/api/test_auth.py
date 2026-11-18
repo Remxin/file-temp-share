@@ -2,7 +2,7 @@ import uuid
 
 import httpx
 
-from conftest import register_user, unique_email
+from helpers import register_user
 
 
 def test_register_login_and_me(

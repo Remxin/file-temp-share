@@ -136,20 +136,12 @@ tasks:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test ./internal/domain/ ./internal/service/ ./internal/mailer/"'
 
   test:int:
-    desc: Run API integration tests (Python; requires API + Postgres)
+    desc: Run API integration tests (uv + pytest; requires running API)
     deps: [infra:up:db, db:migrate:up]
     cmds:
-      - docker compose up -d --build api
-      - |
-        {{.N}} sh -c '
-          set -e
-          python -m venv .venv-int
-          . .venv-int/bin/activate
-          pip install -q -r tests/api/requirements.txt
-          export API_BASE_URL="${API_BASE_URL:-http://localhost:8080}"
-          export DATABASE_URL="${DATABASE_URL:-postgres://filetemp:filetemp@localhost:5432/filetemp?sslmode=disable}"
-          pytest tests/api -q
-        '
+      # Start API + deps if needed; do not --build (use task infra:up:api to rebuild).
+      - docker compose up -d api
+      - '{{.N}} sh -c "cd tests/api && uv sync && uv run pytest"'
 
   devbox:check:
     desc: Verify Devbox toolbox tool versions
@@ -160,3 +152,5 @@ tasks:
       - "{{.MIGRATE_BIN}} -version"
       - "{{.N}} task --version"
       - "{{.N}} node --version"
+      - "{{.N}} uv --version"
+      - "{{.N}} python --version"

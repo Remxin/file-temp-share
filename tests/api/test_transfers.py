@@ -2,7 +2,7 @@ import uuid
 
 import httpx
 
-from conftest import register_user
+from helpers import register_user
 
 
 def test_transfers_require_auth(client: httpx.Client) -> None:
