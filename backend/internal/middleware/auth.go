@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"file-temp-share/backend/internal/auth"
+	"file-temp-share/backend/internal/domain"
 	"file-temp-share/backend/internal/platform/httpx"
 )
 
@@ -37,6 +38,18 @@ func AuthRequired(tokens *auth.TokenManager) gin.HandlerFunc {
 	}
 }
 
+// AdminRequired must run after AuthRequired.
+func AdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, ok := Role(c)
+		if !ok || role != domain.RoleAdmin {
+			c.AbortWithStatusJSON(http.StatusForbidden, httpx.ErrorBody{Error: "forbidden"})
+			return
+		}
+		c.Next()
+	}
+}
+
 func UserID(c *gin.Context) (uuid.UUID, bool) {
 	v, ok := c.Get(ContextUserIDKey)
 	if !ok {
@@ -44,4 +57,13 @@ func UserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	id, ok := v.(uuid.UUID)
 	return id, ok
+}
+
+func Role(c *gin.Context) (string, bool) {
+	v, ok := c.Get(ContextRoleKey)
+	if !ok {
+		return "", false
+	}
+	role, ok := v.(string)
+	return role, ok
 }

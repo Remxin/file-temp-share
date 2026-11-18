@@ -70,6 +70,40 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id uuid.UUID, passw
 	return nil
 }
 
+func (r *UserRepository) List(ctx context.Context) ([]domain.User, error) {
+	rows, err := r.q.ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	out := make([]domain.User, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mapUser(row))
+	}
+	return out, nil
+}
+
+func (r *UserRepository) SetActive(ctx context.Context, id uuid.UUID, isActive bool) (domain.User, error) {
+	row, err := r.q.SetUserActive(ctx, sqlc.SetUserActiveParams{
+		ID:       id,
+		IsActive: isActive,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, domain.ErrNotFound
+		}
+		return domain.User{}, fmt.Errorf("set user active: %w", err)
+	}
+	return mapUser(row), nil
+}
+
+func (r *UserRepository) CountActiveAdmins(ctx context.Context) (int64, error) {
+	n, err := r.q.CountActiveAdmins(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count active admins: %w", err)
+	}
+	return n, nil
+}
+
 func mapUser(row sqlc.User) domain.User {
 	return domain.User{
 		ID:           row.ID,

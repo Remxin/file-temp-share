@@ -12,7 +12,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearCredentials } from "@/features/auth/authSlice";
 import { selectCurrentUser } from "@/features/auth/selectors";
 
-const nav = [
+const baseNav = [
   { href: "/transfers", label: "Dashboard", icon: "dashboard" },
   { href: "/transfers/new", label: "New Transfer", icon: "cloud_upload" },
   { href: "/settings", label: "Settings", icon: "settings" },
@@ -28,6 +28,12 @@ export function AppShell({ children }: AppShellProps) {
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectCurrentUser);
   const [menuOpen, setMenuOpen] = useState(false);
+  const nav = [
+    ...baseNav,
+    ...(user?.role === "ADMIN"
+      ? ([{ href: "/admin", label: "Admin", icon: "admin_panel_settings" }] as const)
+      : []),
+  ];
 
   function logout() {
     dispatch(clearCredentials());

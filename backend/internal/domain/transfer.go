@@ -45,6 +45,11 @@ type TransferListItem struct {
 	FirstFileName  *string
 }
 
+type AdminTransferListItem struct {
+	TransferListItem
+	OwnerEmail string
+}
+
 func (t Transfer) IsExpired(now time.Time) bool {
 	if t.Status == TransferStatusExpired {
 		return true

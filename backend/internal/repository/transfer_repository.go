@@ -96,6 +96,45 @@ func (r *TransferRepository) ListByUserID(ctx context.Context, userID uuid.UUID)
 	return out, nil
 }
 
+func (r *TransferRepository) ListAll(ctx context.Context) ([]domain.AdminTransferListItem, error) {
+	rows, err := r.q.ListAllTransfersWithStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list all transfers: %w", err)
+	}
+	out := make([]domain.AdminTransferListItem, 0, len(rows))
+	for _, row := range rows {
+		item := domain.AdminTransferListItem{
+			TransferListItem: domain.TransferListItem{
+				Transfer:       mapTransferFromAdminListRow(row),
+				FileCount:      row.FileCount,
+				TotalSizeBytes: row.TotalSizeBytes,
+				RecipientCount: row.RecipientCount,
+			},
+			OwnerEmail: row.OwnerEmail,
+		}
+		if row.FirstFileName != "" {
+			name := row.FirstFileName
+			item.FirstFileName = &name
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (r *TransferRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (domain.Transfer, error) {
+	row, err := r.q.UpdateTransferStatus(ctx, sqlc.UpdateTransferStatusParams{
+		ID:     id,
+		Status: status,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Transfer{}, domain.ErrNotFound
+		}
+		return domain.Transfer{}, fmt.Errorf("update transfer status: %w", err)
+	}
+	return mapTransfer(row), nil
+}
+
 func (r *TransferRepository) GetFileByID(ctx context.Context, fileID uuid.UUID) (domain.File, error) {
 	row, err := r.q.GetFileByID(ctx, fileID)
 	if err != nil {
@@ -201,6 +240,26 @@ func (r *TransferRepository) CreateFile(ctx context.Context, transferID uuid.UUI
 }
 
 func mapTransferFromListRow(row sqlc.ListTransfersWithStatsByUserIDRow) domain.Transfer {
+	t := domain.Transfer{
+		ID:            row.ID,
+		UserID:        row.UserID,
+		ShortCode:     row.ShortCode,
+		Title:         textToPtr(row.Title),
+		Message:       textToPtr(row.Message),
+		PasswordHash:  textToPtr(row.PasswordHash),
+		Status:        row.Status,
+		ExpiresAt:     row.ExpiresAt,
+		DownloadCount: row.DownloadCount,
+		CreatedAt:     row.CreatedAt,
+	}
+	if row.MaxDownloads.Valid {
+		v := row.MaxDownloads.Int32
+		t.MaxDownloads = &v
+	}
+	return t
+}
+
+func mapTransferFromAdminListRow(row sqlc.ListAllTransfersWithStatsRow) domain.Transfer {
 	t := domain.Transfer{
 		ID:            row.ID,
 		UserID:        row.UserID,

@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveAdmins = `-- name: CountActiveAdmins :one
+SELECT COUNT(*)::bigint AS count
+FROM users
+WHERE role = 'ADMIN'
+  AND is_active = TRUE
+`
+
+func (q *Queries) CountActiveAdmins(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveAdmins)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, role)
 VALUES ($1, $2, $3)
@@ -65,6 +79,65 @@ LIMIT 1
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, password_hash, role, is_active, created_at
+FROM users
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Role,
+			&i.IsActive,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setUserActive = `-- name: SetUserActive :one
+UPDATE users
+SET is_active = $2
+WHERE id = $1
+RETURNING id, email, password_hash, role, is_active, created_at
+`
+
+type SetUserActiveParams struct {
+	ID       uuid.UUID `json:"id"`
+	IsActive bool      `json:"is_active"`
+}
+
+func (q *Queries) SetUserActive(ctx context.Context, arg SetUserActiveParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserActive, arg.ID, arg.IsActive)
 	var i User
 	err := row.Scan(
 		&i.ID,

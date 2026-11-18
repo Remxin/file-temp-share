@@ -6,6 +6,7 @@ import { baseApi } from "@/store/api/baseApi";
 // Ensure injectEndpoints modules register on store init.
 import "@/features/auth/authApi";
 import "@/features/transfers/transfersApi";
+import "@/features/admin/adminApi";
 
 export const makeStore = () =>
   configureStore({
