@@ -4,6 +4,15 @@ Temporary file-sharing app inspired by WeTransfer. Create a **transfer**, attach
 
 Monorepo with a Go/Gin HTTP API, a background worker, a Next.js frontend, PostgreSQL, MinIO (S3), and RabbitMQ.
 
+## Features
+
+- **Accounts** — register, login, current user (`/me`), password reset (email via worker)
+- **Transfers** — create a share package with title, message, expiry, optional password, and recipient emails
+- **File upload** — multipart upload through the API into MinIO; invite emails sent after the first file is attached
+- **Dashboard** — list and manage your transfers (active / expired filters, copy share link, open detail, delete)
+- **Public download** — open `/t/:slug`, unlock with password if set, download files until expiry (**410** when expired)
+- **Admin** — basic admin surface for blocked/user management (API + UI)
+
 ## Technologies
 
 | Layer | Stack |
@@ -17,14 +26,29 @@ Monorepo with a Go/Gin HTTP API, a background worker, a Next.js frontend, Postgr
 | Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS |
 | Tooling | Devbox, Taskfile (`go-task`), Docker Compose |
 
-## Features
+## Architecture
 
-- **Accounts** — register, login, current user (`/me`), password reset (email via worker)
-- **Transfers** — create a share package with title, message, expiry, optional password, and recipient emails
-- **File upload** — multipart upload through the API into MinIO; invite emails sent after the first file is attached
-- **Dashboard** — list and manage your transfers (active / expired filters, copy share link, open detail, delete)
-- **Public download** — open `/t/:slug`, unlock with password if set, download files until expiry (**410** when expired)
-- **Admin** — basic admin surface for blocked/user management (API + UI)
+Browser talks to the Next.js UI and the Gin API. The API owns Postgres metadata and MinIO blobs; email goes out asynchronously through RabbitMQ and a worker.
+
+![Architecture overview](doc/architecture-overview.png)
+
+## How it works
+
+### Sharing a transfer
+
+The sender creates a transfer (JWT), uploads files through the API into MinIO, then the worker emails recipients with the public link.
+
+![Flow — sharing files](doc/flow-sharing-files.png)
+
+### Downloading files
+
+Recipients open the public link — no account required. Optional password unlock, then the API streams the file from MinIO and records the download.
+
+![Flow — downloading files](doc/flow-downloading-files.png)
+
+## Data model
+
+![Database schema](doc/dbdiagram.png)
 
 ## Prerequisites
 
@@ -95,6 +119,7 @@ Useful tasks: `task --list`, `task infra:logs`, `task infra:up:api`, `task test:
 ## Project layout
 
 ```
+doc/         Architecture and flow diagrams
 backend/     Gin API (`cmd/api`) + worker (`cmd/worker`)
 frontend/    Next.js App Router UI
 tests/api/   Python (uv + pytest) API integration tests
@@ -102,5 +127,3 @@ Taskfile.yml Common commands
 devbox.json  Dev toolbox
 docker-compose.yml
 ```
-
-Agent-oriented architecture notes: [AGENTS.md](./AGENTS.md).
