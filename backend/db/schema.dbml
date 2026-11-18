@@ -1,0 +1,121 @@
+// file-temp-share — full DB schema (from migrations 000001–000003)
+// Paste into https://dbdiagram.io or open via dbdocs
+//
+// FK delete rules (SQL, not expressible cleanly in all DBML parsers):
+//   transfers.user_id → users.id                    ON DELETE CASCADE
+//   files.transfer_id → transfers.id                ON DELETE CASCADE
+//   transfer_recipients.transfer_id → transfers.id  ON DELETE CASCADE
+//   download_logs.transfer_id → transfers.id        ON DELETE CASCADE
+//   download_logs.file_id → files.id                ON DELETE SET NULL
+//   password_reset_tokens.user_id → users.id        ON DELETE CASCADE
+
+Enum users_role {
+  USER
+  ADMIN
+}
+
+Enum transfers_status {
+  active
+  expired
+  deleted
+  blocked
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  role users_role [not null, default: 'USER']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Accounts (JWT auth). role CHECK: USER | ADMIN'
+}
+
+Table transfers {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  short_code varchar(12) [not null, unique]
+  title varchar(100)
+  message text
+  password_hash varchar(255)
+  status transfers_status [not null, default: 'active']
+  expires_at timestamptz [not null]
+  max_downloads integer
+  download_count integer [not null, default: 0]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: '''
+    Share package. status CHECK: active | expired | deleted | blocked.
+    max_downloads NULL or > 0; download_count >= 0.
+  '''
+
+  indexes {
+    short_code [name: 'idx_transfers_short_code']
+    expires_at [name: 'idx_transfers_expires_at']
+    user_id [name: 'idx_transfers_user_id']
+    status [name: 'idx_transfers_status']
+  }
+}
+
+Table files {
+  id uuid [pk, default: `gen_random_uuid()`]
+  transfer_id uuid [not null, ref: > transfers.id]
+  original_name varchar(255) [not null]
+  storage_key varchar(512) [not null, unique]
+  mime_type varchar(100) [not null]
+  size_bytes bigint [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Blob metadata (MinIO key = storage_key). size_bytes >= 0'
+
+  indexes {
+    transfer_id [name: 'idx_files_transfer_id']
+  }
+}
+
+Table transfer_recipients {
+  id uuid [pk, default: `gen_random_uuid()`]
+  transfer_id uuid [not null, ref: > transfers.id]
+  email varchar(255) [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'Notification emails for public link. No account required. UNIQUE(transfer_id, email)'
+
+  indexes {
+    (transfer_id, email) [unique, name: 'transfer_recipients_transfer_email_key']
+    transfer_id [name: 'idx_transfer_recipients_transfer_id']
+  }
+}
+
+Table download_logs {
+  id bigserial [pk]
+  transfer_id uuid [not null, ref: > transfers.id]
+  file_id uuid [ref: > files.id]
+  ip_address varchar(45)
+  user_agent text
+  downloaded_at timestamptz [not null, default: `now()`]
+
+  Note: 'Download history. file_id optional (per-file vs whole transfer). ON DELETE SET NULL for file_id'
+
+  indexes {
+    transfer_id [name: 'idx_download_logs_transfer_id']
+    downloaded_at [name: 'idx_download_logs_downloaded_at']
+  }
+}
+
+Table password_reset_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token_hash varchar(64) [not null, unique]
+  expires_at timestamptz [not null]
+  used_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'SHA-256 of raw reset token'
+
+  indexes {
+    user_id [name: 'idx_password_reset_tokens_user_id']
+    expires_at [name: 'idx_password_reset_tokens_expires_at']
+  }
+}
