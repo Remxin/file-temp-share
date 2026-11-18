@@ -1,4 +1,4 @@
-# file-temp-share
+# FlashShare
 
 Temporary file-sharing app inspired by WeTransfer. Create a **transfer**, attach files, share a link (and optionally email recipients), then let others download until the transfer expires.
 
