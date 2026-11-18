@@ -135,6 +135,12 @@ tasks:
     cmds:
       - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test ./internal/domain/ ./internal/service/ ./internal/mailer/"'
 
+  test:int:
+    desc: Run API integration tests (requires Postgres + migrations)
+    deps: [infra:up:db, db:migrate:up]
+    cmds:
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test -tags=integration ./internal/server/ -count=1"'
+
   devbox:check:
     desc: Verify Devbox toolbox tool versions
     deps: [tools:install]
