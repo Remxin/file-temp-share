@@ -130,6 +130,11 @@ tasks:
     cmds:
       - '{{.N}} sh -c "cd frontend && npm run lint"'
 
+  test:unit:
+    desc: Run backend unit tests (packages with *_test.go only)
+    cmds:
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test ./internal/domain/ ./internal/service/ ./internal/mailer/"'
+
   devbox:check:
     desc: Verify Devbox toolbox tool versions
     deps: [tools:install]
