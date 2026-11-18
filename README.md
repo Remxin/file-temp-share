@@ -1,46 +1,106 @@
 # file-temp-share
 
-Temporary file sharing (WeTransfer-like). Monorepo: Go/Gin API + Next.js frontend + PostgreSQL.
+Temporary file-sharing app inspired by WeTransfer. Create a **transfer**, attach files, share a link (and optionally email recipients), then let others download until the transfer expires.
 
-Architecture, layering, and feature status for AI agents: **[AGENTS.md](./AGENTS.md)**.
+Monorepo with a Go/Gin HTTP API, a background worker, a Next.js frontend, PostgreSQL, MinIO (S3), and RabbitMQ.
 
-## Quick start
+## Technologies
+
+| Layer | Stack |
+|-------|--------|
+| Backend API | Go 1.23+, Gin, JWT (HS256) |
+| API docs | swaggo/swag + Swagger UI |
+| Database | PostgreSQL 16, pgx/v5, sqlc, golang-migrate |
+| Object storage | MinIO (S3-compatible) — uploads proxied through the API |
+| Async jobs | RabbitMQ + Go worker |
+| Email | Gmail SMTP (app password) |
+| Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS |
+| Tooling | Devbox, Taskfile (`go-task`), Docker Compose |
+
+## Features
+
+- **Accounts** — register, login, current user (`/me`), password reset (email via worker)
+- **Transfers** — create a share package with title, message, expiry, optional password, and recipient emails
+- **File upload** — multipart upload through the API into MinIO; invite emails sent after the first file is attached
+- **Dashboard** — list and manage your transfers (active / expired filters, copy share link, open detail, delete)
+- **Public download** — open `/t/:slug`, unlock with password if set, download files until expiry (**410** when expired)
+- **Admin** — basic admin surface for blocked/user management (API + UI)
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Devbox](https://www.jetify.com/devbox) (for local tooling: Go, Node, Task, sqlc, …)
+- [go-task](https://taskfile.dev/) (available inside Devbox)
+
+Optional for email in local/Docker: Gmail address + [app password](https://support.google.com/accounts/answer/185833) in `.env` (`GMAIL_APP_LOGIN`, `GMAIL_APP_PASSWORD`).
+
+## Getting started
+
+1. Clone the repo and copy environment defaults:
 
 ```bash
 cp .env.example .env
-
-# Full stack in Docker (Postgres, RabbitMQ, API, worker, frontend)
-task infra:up
-task db:migrate:up
-task db:seed   # optional
-
-# Or hybrid: infra in Docker, processes via Devbox
-# task infra:up:db && task infra:up:mq
-# task api:swagger && task api:run
-# task worker:run
-# task frontend:dev
 ```
+
+Edit `.env` if you need different ports, JWT secret, or Gmail credentials. Do not commit `.env`.
+
+2. Enter the Devbox shell (installs/pins CLI tools):
+
+```bash
+devbox shell
+```
+
+3. Start the full stack (Postgres, MinIO, RabbitMQ, API, worker, frontend):
+
+```bash
+task infra:up
+```
+
+4. Apply migrations and (optionally) seed demo users:
+
+```bash
+task db:migrate:up
+task db:seed
+```
+
+5. Open the apps:
 
 | Service | URL |
 |---------|-----|
-| Frontend | [http://localhost:3000](http://localhost:3000) |
-| API / Swagger | [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html) |
-| Postgres | `localhost:5432` |
-| MinIO S3 API | `localhost:9000` |
-| MinIO console | [http://localhost:9001](http://localhost:9001) (default `minioadmin` / `minioadmin`) |
-| RabbitMQ AMQP | `localhost:5672` |
-| RabbitMQ management | [http://localhost:15672](http://localhost:15672) (guest/guest) |
+| Frontend | http://localhost:3000 |
+| API / Swagger | http://localhost:8080/swagger/index.html |
+| MinIO console | http://localhost:9001 (`minioadmin` / `minioadmin`) |
+| RabbitMQ management | http://localhost:15672 (`guest` / `guest`) |
 
-Change host ports via `API_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT`, `MINIO_API_PORT`, `MINIO_CONSOLE_PORT`, `RABBITMQ_PORT`, `RABBITMQ_MANAGEMENT_PORT` in `.env`.
+Stop everything with `task infra:down`.
 
-Worker (Compose service `worker`, image `backend/Dockerfile.worker`) sends password-reset mail via Gmail SMTP. Put `GMAIL_APP_LOGIN` / `GMAIL_APP_PASSWORD` in project `.env` so Compose can inject them.
+### Hybrid local development
 
-## Layout
+Run infra in Docker, processes on the host:
 
-| Path | Role |
-|------|------|
-| `backend/` | Gin monolith (API + worker) |
-| `frontend/` | Next.js App Router |
-| `docker-compose.yml` | Postgres + MinIO + RabbitMQ + API + worker + frontend |
-| `Taskfile.yml` | Common commands |
-| `devbox.json` | Dev toolbox (go, sqlc, migrate, task, node) |
+```bash
+task infra:up:db
+task infra:up:mq
+task infra:up:minio
+task db:migrate:up
+
+task api:swagger   # once, or after API annotation changes
+task api:run
+task worker:run    # needs Gmail env for real mail
+task frontend:dev
+```
+
+Useful tasks: `task --list`, `task infra:logs`, `task infra:up:api`, `task test:unit`, `task test:int`.
+
+## Project layout
+
+```
+backend/     Gin API (`cmd/api`) + worker (`cmd/worker`)
+frontend/    Next.js App Router UI
+tests/api/   Python (uv + pytest) API integration tests
+Taskfile.yml Common commands
+devbox.json  Dev toolbox
+docker-compose.yml
+```
+
+Agent-oriented architecture notes: [AGENTS.md](./AGENTS.md).
