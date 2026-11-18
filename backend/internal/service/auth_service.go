@@ -18,9 +18,24 @@ import (
 
 const passwordResetTTL = time.Hour
 
+// userStore is the AuthService subset of user persistence (keeps unit tests free of sqlc).
+type userStore interface {
+	Create(ctx context.Context, email, passwordHash, role string) (domain.User, error)
+	GetByEmail(ctx context.Context, email string) (domain.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (domain.User, error)
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
+}
+
+type passwordResetStore interface {
+	Create(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) (repository.PasswordResetToken, error)
+	GetByHash(ctx context.Context, tokenHash string) (repository.PasswordResetToken, error)
+	MarkUsed(ctx context.Context, id uuid.UUID) error
+	InvalidateForUser(ctx context.Context, userID uuid.UUID) error
+}
+
 type AuthService struct {
-	users        *repository.UserRepository
-	resets       *repository.PasswordResetRepository
+	users        userStore
+	resets       passwordResetStore
 	tokens       *auth.TokenManager
 	publisher    queue.Publisher
 	appPublicURL string
@@ -28,8 +43,8 @@ type AuthService struct {
 }
 
 func NewAuthService(
-	users *repository.UserRepository,
-	resets *repository.PasswordResetRepository,
+	users userStore,
+	resets passwordResetStore,
 	tokens *auth.TokenManager,
 	publisher queue.Publisher,
 	appPublicURL string,

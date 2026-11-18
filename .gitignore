@@ -46,6 +46,13 @@ result-*
 *~
 .DS_Store
 
+# Python (API integration tests / uv)
+.venv/
+.venv-int/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
 # Logs
 *.log
 logs/

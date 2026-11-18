@@ -130,6 +130,19 @@ tasks:
     cmds:
       - '{{.N}} sh -c "cd frontend && npm run lint"'
 
+  test:unit:
+    desc: Run backend unit tests (packages with *_test.go only)
+    cmds:
+      - '{{.N}} sh -c "cd {{.BACKEND_DIR}} && go test -v ./internal/domain/ ./internal/service/ ./internal/mailer/"'
+
+  test:int:
+    desc: Run API integration tests (uv + pytest; requires running API)
+    deps: [infra:up:db, db:migrate:up]
+    cmds:
+      # Start API + deps if needed; do not --build (use task infra:up:api to rebuild).
+      - docker compose up -d api
+      - '{{.N}} sh -c "cd tests/api && uv sync && uv run pytest"'
+
   devbox:check:
     desc: Verify Devbox toolbox tool versions
     deps: [tools:install]
@@ -139,3 +152,5 @@ tasks:
       - "{{.MIGRATE_BIN}} -version"
       - "{{.N}} task --version"
       - "{{.N}} node --version"
+      - "{{.N}} uv --version"
+      - "{{.N}} python --version"

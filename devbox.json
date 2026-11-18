@@ -6,7 +6,9 @@
     "golangci-lint@latest",
     "sqlc@latest",
     "go-task@latest",
-    "nodejs_22@latest"
+    "nodejs_22@latest",
+    "python@3.12",
+    "uv@latest"
   ],
   "shell": {
     "init_hook": [
@@ -20,7 +22,8 @@
         "sqlc version",
         "migrate -version",
         "task --version",
-        "node --version"
+        "node --version",
+        "uv --version"
       ]
     }
   }
