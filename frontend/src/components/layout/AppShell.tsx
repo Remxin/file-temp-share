@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { cn } from "@/lib/cn";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { clearCredentials } from "@/features/auth/authSlice";
 import { selectCurrentUser } from "@/features/auth/selectors";
+import { useLogout } from "@/features/auth/useLogout";
+import { cn } from "@/lib/cn";
+import { useAppSelector } from "@/store/hooks";
 
 const baseNav = [
   { href: "/transfers", label: "Dashboard", icon: "dashboard" },
@@ -24,8 +24,7 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const dispatch = useAppDispatch();
+  const logout = useLogout();
   const user = useAppSelector(selectCurrentUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const nav = [
@@ -34,11 +33,6 @@ export function AppShell({ children }: AppShellProps) {
       ? ([{ href: "/admin", label: "Admin", icon: "admin_panel_settings" }] as const)
       : []),
   ];
-
-  function logout() {
-    dispatch(clearCredentials());
-    router.replace("/login");
-  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">

@@ -102,6 +102,39 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewUserResponse(user))
 }
 
+// ChangePassword godoc
+//
+//	@Summary		Change password
+//	@Description	Requires the current password. Invalidates outstanding password-reset tokens.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body	body		dto.ChangePasswordRequest	true	"current and new password"
+//	@Success		204
+//	@Failure		400	{object}	httpx.ErrorBody
+//	@Failure		401	{object}	httpx.ErrorBody
+//	@Failure		403	{object}	httpx.ErrorBody
+//	@Router			/api/v1/auth/password [post]
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	id, ok := middleware.UserID(c)
+	if !ok {
+		httpx.Abort(c, domain.ErrUnauthorized)
+		return
+	}
+	var req dto.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	if err := h.auth.ChangePassword(c.Request.Context(), id, req.CurrentPassword, req.NewPassword); err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // RequestPasswordReset godoc
 //
 //	@Summary		Request password reset
