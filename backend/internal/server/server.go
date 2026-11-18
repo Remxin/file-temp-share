@@ -37,6 +37,7 @@ func New(deps Dependencies) *gin.Engine {
 			authGroup.POST("/password-reset", deps.AuthHandler.RequestPasswordReset)
 			authGroup.POST("/password-reset/confirm", deps.AuthHandler.ConfirmPasswordReset)
 			authGroup.GET("/me", middleware.AuthRequired(deps.TokenManager), deps.AuthHandler.Me)
+			authGroup.POST("/password", middleware.AuthRequired(deps.TokenManager), deps.AuthHandler.ChangePassword)
 		}
 
 		transfers := v1.Group("/transfers")

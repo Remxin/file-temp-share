@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { useMeQuery } from "@/features/auth/authApi";
 import { useLogout } from "@/features/auth/useLogout";
+import { ChangePasswordForm } from "@/features/settings/ChangePasswordForm";
 import { formatDateTime } from "@/lib/format";
 
 export function AccountOverview() {
@@ -72,6 +73,8 @@ export function AccountOverview() {
           <Row label="Member since" value={formatDateTime(user.created_at)} />
         </dl>
       </Card>
+
+      <ChangePasswordForm />
 
       <Card className="space-y-3">
         <div>

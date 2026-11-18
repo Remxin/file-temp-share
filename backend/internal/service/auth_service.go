@@ -138,6 +138,33 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) er
 	return nil
 }
 
+func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !user.IsActive {
+		return domain.ErrUserInactive
+	}
+	if !auth.CheckPassword(user.PasswordHash, currentPassword) {
+		// 400 (not 401): wrong current password must not clear the session JWT.
+		return fmt.Errorf("%w: current password is incorrect", domain.ErrValidation)
+	}
+	if currentPassword == newPassword {
+		return fmt.Errorf("%w: new password must differ from current password", domain.ErrValidation)
+	}
+
+	passwordHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.users.UpdatePassword(ctx, user.ID, passwordHash); err != nil {
+		return err
+	}
+	_ = s.resets.InvalidateForUser(ctx, user.ID)
+	return nil
+}
+
 func (s *AuthService) ConfirmPasswordReset(ctx context.Context, rawToken, newPassword string) error {
 	hash := auth.HashResetToken(rawToken)
 	token, err := s.resets.GetByHash(ctx, hash)

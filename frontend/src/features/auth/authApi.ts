@@ -5,6 +5,7 @@ import {
 } from "@/features/auth/authSlice";
 import type {
   AuthResponse,
+  ChangePasswordRequest,
   LoginRequest,
   MessageResponse,
   PasswordResetConfirmRequest,
@@ -57,6 +58,13 @@ export const authApi = baseApi.injectEndpoints({
         }
       },
     }),
+    changePassword: build.mutation<void, ChangePasswordRequest>({
+      query: (body) => ({
+        url: "/api/v1/auth/password",
+        method: "POST",
+        body,
+      }),
+    }),
     requestPasswordReset: build.mutation<MessageResponse, PasswordResetRequest>({
       query: (body) => ({
         url: "/api/v1/auth/password-reset",
@@ -79,6 +87,7 @@ export const {
   useLoginMutation,
   useMeQuery,
   useLazyMeQuery,
+  useChangePasswordMutation,
   useRequestPasswordResetMutation,
   useConfirmPasswordResetMutation,
 } = authApi;
